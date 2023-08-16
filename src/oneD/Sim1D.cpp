@@ -737,6 +737,79 @@ int Sim1D::setFixedTemperature(double t)
     return np;
 }
 
+void Sim1D::setFuelInternalBoundary(double t)
+{
+    double epsilon = 1e-3; // Precision threshold for being 'equal' to a temperature
+    for (size_t n = 0; n < nDomains(); n++) {
+        Domain1D& d = domain(n);
+
+        // Skip if the domain type doesn't match
+        if (d.domainType() != cAxisymmetricStagnationFlow) {
+            continue;
+        }
+
+        StFlow* d_axis = dynamic_cast<StFlow*>(&domain(n));
+        size_t np = d_axis->nPoints();
+
+        // Skip if none of the control is enabled
+        if (!d_axis->onePointControlEnabled() && !d_axis->twoPointControlEnabled()) {
+            continue;
+        }
+
+        for (size_t m = 0; m < np-1; m++) {
+            // Check if the absolute difference between the two temperatures is less than epsilon
+            if (std::abs(value(n,2,m) - t) < epsilon) {
+                d_axis->m_zFuel = d_axis->grid(m);
+                d_axis->m_tFuel = value(n,2,m);
+                return;
+            }
+
+            if ((value(n,2,m) - t) * (value(n,2,m+1) - t) < 0.0) {
+                d_axis->m_zFuel = d_axis->grid(m+1);
+                d_axis->m_tFuel = value(n,2,m+1);
+                return;
+            }
+        }
+    }
+}
+
+void Sim1D::setOxidizerInternalBoundary(double t)
+{
+    double epsilon = 1e-3; // Precision threshold for being 'equal' to a temperature
+
+    for (size_t n = 0; n < nDomains(); n++) {
+        Domain1D& d = domain(n);
+
+        // Skip if the domain type doesn't match
+        if (d.domainType() != cAxisymmetricStagnationFlow) {
+            continue;
+        }
+
+        StFlow* d_axis = dynamic_cast<StFlow*>(&domain(n));
+        size_t np = d_axis->nPoints();
+
+        // Skip if two-point control is not enabled
+        if (!d_axis->twoPointControlEnabled()) {
+            continue;
+        }
+
+        for (size_t m = np-1; m > 0; m--) {
+            // Check if the absolute difference between the two temperatures is less than epsilon
+            if (std::abs(value(n,2,m) - t) < epsilon) {
+                d_axis->m_zOxid = d_axis->grid(m);
+                d_axis->m_tOxid = value(n,2,m);
+                return;
+            } 
+
+            if ((value(n,2,m) - t) * (value(n,2,m-1) - t) < 0.0) {
+                d_axis->m_zOxid = d_axis->grid(m-1);
+                d_axis->m_tOxid = value(n,2,m-1);
+                return;
+            }
+        }
+    }
+}
+
 double Sim1D::fixedTemperature()
 {
     double t_fixed = std::numeric_limits<double>::quiet_NaN();

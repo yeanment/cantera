@@ -27,7 +27,8 @@ enum offset
     , c_offset_T //! temperature
     , c_offset_L //! (1/r)dP/dr
     , c_offset_E //! electric poisson's equation
-    , c_offset_Y //! mass fractions
+    , c_offset_Uo //! oxidizer axial velocity
+    , c_offset_Y //! mass fractions, additions after this can cause issues, add them before
 };
 
 class Transport;
@@ -153,6 +154,34 @@ public:
     //! The fixed temperature value at point j.
     doublereal T_fixed(size_t j) const {
         return m_fixedtemp[j];
+    }
+
+    //! The current fuel internal boundary temperature
+    double fuelInternalBoundaryTemperature() const {
+        if ((m_onePointControl || m_twoPointControl) && (m_zFuel != Undef)) {
+            return m_tFuel;
+        }
+    }
+
+    //! Set the temperature in the fuel side internal boundary
+    void setFuelInternalBoundaryTemperature(double tFuel) {
+        if ((m_onePointControl || m_twoPointControl) && (m_zFuel != Undef)) {
+            m_tFuel = tFuel;
+        }
+    }
+
+    //! The current oxidizer side internal boundary temperature
+    double oxidInternalBoundaryTemperature() const {
+        if (m_twoPointControl && (m_zOxid != Undef)) {
+            return m_tOxid;
+        }
+    }
+
+    //! Set the temperature in the oxidizer side internal boundary
+    void setOxidInternalBoundaryTemperature(doublereal tOxid) {
+        if (m_twoPointControl && (m_zOxid != Undef)) {
+            m_tOxid = tOxid;
+        }
     }
 
     //! @}
@@ -315,6 +344,36 @@ public:
         return m_kExcessRight;
     }
 
+    //! Set the status of one-point flame control
+    void enableOnePointControl(bool onePointControl) {
+        if (m_twoPointControl && onePointControl) {
+            throw CanteraError("StFlow::enableOnePointControl",
+                               "Two different point control techniques can not be set simultaneously");
+        } else {
+            m_onePointControl = onePointControl;
+        }
+    }
+
+    //! Set the status of two-point flame control
+    void enableTwoPointControl(bool twoPointControl) {
+        if (m_onePointControl && twoPointControl) {
+            throw CanteraError("StFlow::enableTwoPointControl",
+                               "Two different point control techniques can not be set simultaneously");
+        } else {
+            m_twoPointControl = twoPointControl;
+        }
+    }
+
+    //! Get the status of one point flame control
+    bool onePointControlEnabled() {
+        return m_onePointControl;
+    }
+
+    //! Get the status of two point flame control
+    bool twoPointControlEnabled() {
+        return m_twoPointControl;
+    }
+
 protected:
     virtual AnyMap getMeta() const;
     virtual void setMeta(const AnyMap& state);
@@ -383,6 +442,10 @@ protected:
 
     doublereal lambda(const doublereal* x, size_t j) const {
         return x[index(c_offset_L, j)];
+    }
+   
+    doublereal Uo(const doublereal* x, size_t j) const {
+        return x[index(c_offset_Uo, j)];
     }
 
     doublereal Y(const doublereal* x, size_t k, size_t j) const {
@@ -523,6 +586,12 @@ protected:
     bool m_isFree;
     bool m_usesLambda;
 
+    //! Flag for one point flame control
+    bool m_onePointControl = false;
+
+    //! Flag for two point flame control
+    bool m_twoPointControl = false;
+
     //! Update the transport properties at grid points in the range from `j0`
     //! to `j1`, based on solution `x`.
     virtual void updateTransport(doublereal* x, size_t j0, size_t j1);
@@ -533,6 +602,18 @@ public:
 
     //! Temperature at the point used to fix the flame location
     double m_tfixed = -1.0;
+
+    //! The location of the internal boundary at fuel side
+    double m_zFuel = Undef;
+
+    //! The fixed temperature at the fuel side internal boundary
+    double m_tFuel = Undef;
+
+    //! The location of the internal boundary at oxidizer side
+    double m_zOxid = Undef;
+
+    //! The fixed temperature at the oxidizer side internal boundary
+    double m_tOxid = Undef;
 
 private:
     vector_fp m_ybar;

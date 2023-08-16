@@ -246,6 +246,14 @@ public:
     //! Add node for fixed temperature point of freely propagating flame
     int setFixedTemperature(double t);
 
+    //! Set the fuel internal boundary location. This is used for one/two-point
+    //! flame control for stagnation flows.
+    void setFuelInternalBoundary(double temperature);
+
+    //! Set the oxidizer internal boundary location. This is used for one/two-point
+    //! flame control for stagnation flows.
+    void setOxidizerInternalBoundary(double temperature);
+
     //! Return temperature at the point used to fix the flame location
     double fixedTemperature();
 
@@ -343,6 +351,16 @@ public:
     void setSteadyCallback(Func1* callback) {
         m_steady_callback = callback;
     }
+
+    void setFlameControl(bool strainRateEqEnabled, 
+                         bool unityLewisNumber,
+                         bool oneLewisEnabled,
+                         bool twoPointEnabled, 
+                         int Tfuel_j, 
+                         int Toxid_j,
+                         doublereal Tfuel, 
+                         doublereal Toxid, 
+                         bool reactionsEnabled);
 
 protected:
     //! the solution vector after the last successful timestepping

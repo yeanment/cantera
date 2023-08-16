@@ -240,6 +240,28 @@ class FlameBase(Sim1D):
         self.flame.energy_enabled = enable
 
     @property
+    def onePointControl_enabled(self):
+        """
+        Get/Set whether or not to active one point flame control.
+        """
+        return self.flame.onePointControl_enabled
+
+    @onePointControl_enabled.setter
+    def onePointControl_enabled(self, enable):
+        self.flame.onePointControl_enabled = enable
+
+    @property
+    def twoPointControl_enabled(self):
+        """
+        Get/Set whether or not to active two point flame control.
+        """
+        return self.flame.twoPointControl_enabled
+
+    @twoPointControl_enabled.setter
+    def twoPointControl_enabled(self, enable):
+        self.flame.twoPointControl_enabled = enable
+
+    @property
     def soret_enabled(self):
         """
         Get/Set whether or not to include diffusive mass fluxes due to the
@@ -289,6 +311,24 @@ class FlameBase(Sim1D):
         self.flame.P = P
 
     @property
+    def tFuel(self):
+        """ Get/Set the fuel side internal boundary temperature [K] """
+        return self.flame.tFuel
+
+    @tFuel.setter
+    def tFuel(self, T):
+        self.flame.tFuel = T
+
+    @property
+    def tOxid(self):
+        """ Get/Set the oxidizer side internal boundary temperature [K] """
+        return self.flame.tOxid
+
+    @tOxid.setter
+    def tOxid(self, T):
+        self.flame.tOxid = T
+
+    @property
     def T(self):
         """ Array containing the temperature [K] at each grid point. """
         return self.profile(self.flame, 'T')
@@ -316,6 +356,13 @@ class FlameBase(Sim1D):
         """
         return self.profile(self.flame, 'lambda')
 
+    @property
+    def Uo(self):
+        """
+        Array containing the oxidizer velocity [m/s] at each point.
+        """
+        return self.profile(self.flame, 'Uo')
+    
     @property
     def E(self):
         """
