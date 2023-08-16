@@ -739,75 +739,182 @@ int Sim1D::setFixedTemperature(double t)
 
 void Sim1D::setFuelInternalBoundary(double t)
 {
-    double epsilon = 1e-3; // Precision threshold for being 'equal' to a temperature
+    int np = 0;
+    vector_fp znew, xnew;
+    double zfixed = 0.0;
+    double z1 = 0.0, z2 = 0.0;
+    std::vector<size_t> dsize;
+
     for (size_t n = 0; n < nDomains(); n++) {
         Domain1D& d = domain(n);
-
-        // Skip if the domain type doesn't match
-        if (d.domainType() != cAxisymmetricStagnationFlow) {
-            continue;
-        }
-
+        size_t comp = d.nComponents();
+        size_t mfixed = npos;
+        
         StFlow* d_axis = dynamic_cast<StFlow*>(&domain(n));
-        size_t np = d_axis->nPoints();
+        size_t npnow = d.nPoints();
+        size_t nstart = znew.size();
+        if (d.domainType() == cAxisymmetricStagnationFlow &&
+            d_axis && !d_axis->fixed_mdot()) {
+            for (size_t m = 0; m < npnow - 1; m++) {
+                bool fixedpt = false;
+                double t1 = value(n, 2, m);
+                double t2 = value(n, 2, m + 1);
+                // threshold to avoid adding new point too close to existing point
+                double thresh = min(1., 1.e-1 * (t2 - t1));
+                z1 = d.grid(m);
+                z2 = d.grid(m + 1);
+                if (fabs(t - t1) <= thresh) {
+                    zfixed = z1;
+                    fixedpt = true;
+                } else if (fabs(t2 - t) <= thresh) {
+                    zfixed = z2;
+                    fixedpt = true;
+                } else if ((t1 < t) && (t < t2)) {
+                    mfixed = m;
+                    zfixed = (z1 - z2) / (t1 - t2) * (t - t2) + z2;
+                    fixedpt = true;
+                }
 
-        // Skip if none of the control is enabled
-        if (!d_axis->onePointControlEnabled() && !d_axis->twoPointControlEnabled()) {
-            continue;
+                if (fixedpt) {
+                    d_axis->m_zFuel = zfixed;
+                    d_axis->m_tFuel = t;
+                    break;
+                }
+            }
         }
 
-        for (size_t m = 0; m < np-1; m++) {
-            // Check if the absolute difference between the two temperatures is less than epsilon
-            if (std::abs(value(n,2,m) - t) < epsilon) {
-                d_axis->m_zFuel = d_axis->grid(m);
-                d_axis->m_tFuel = value(n,2,m);
-                return;
-            }
+        // copy solution domain and push back values
+        for (size_t m = 0; m < npnow; m++) {
+            // add the current grid point to the new grid
+            znew.push_back(d.grid(m));
 
-            if ((value(n,2,m) - t) * (value(n,2,m+1) - t) < 0.0) {
-                d_axis->m_zFuel = d_axis->grid(m+1);
-                d_axis->m_tFuel = value(n,2,m+1);
-                return;
+            // do the same for the solution at this point
+            for (size_t i = 0; i < comp; i++) {
+                xnew.push_back(value(n, i, m));
+            }
+            if (m == mfixed) {
+                // add new point at zfixed (mfixed is not npos)
+                znew.push_back(zfixed);
+                np++;
+                double interp_factor = (zfixed - z2) / (z1 - z2);
+                // for each component, linearly interpolate
+                // the solution to this point
+                for (size_t i = 0; i < comp; i++) {
+                    double xmid = interp_factor*(value(n, i, m) - value(n, i, m+1)) + value(n,i,m+1);
+                    xnew.push_back(xmid);
+                }
             }
         }
+        dsize.push_back(znew.size() - nstart);
     }
+
+    // At this point, the new grid znew and the new solution vector xnew have
+    // been constructed, but the domains themselves have not yet been modified.
+    // Now update each domain with the new grid.
+    size_t gridstart = 0;
+    for (size_t n = 0; n < nDomains(); n++) {
+        Domain1D& d = domain(n);
+        size_t gridsize = dsize[n];
+        d.setupGrid(gridsize, &znew[gridstart]);
+        gridstart += gridsize;
+    }
+
+    // Replace the current solution vector with the new one
+    *m_state = xnew;
+
+    resize();
+    finalize();
+    // return np;
 }
 
 void Sim1D::setOxidizerInternalBoundary(double t)
 {
-    double epsilon = 1e-3; // Precision threshold for being 'equal' to a temperature
+    int np = 0;
+    vector_fp znew, xnew;
+    double zfixed = 0.0;
+    double z1 = 0.0, z2 = 0.0;
+    std::vector<size_t> dsize;
 
     for (size_t n = 0; n < nDomains(); n++) {
         Domain1D& d = domain(n);
-
-        // Skip if the domain type doesn't match
-        if (d.domainType() != cAxisymmetricStagnationFlow) {
-            continue;
-        }
+        size_t comp = d.nComponents();
+        size_t mfixed = npos;
 
         StFlow* d_axis = dynamic_cast<StFlow*>(&domain(n));
-        size_t np = d_axis->nPoints();
+        size_t npnow = d.nPoints();
+        size_t nstart = znew.size();
+        if (d.domainType() == cAxisymmetricStagnationFlow &&
+            d_axis && !d_axis->twoPointControlEnabled()) {
+            for (size_t m = npnow - 1; m > 0; m--) {
+                bool fixedpt = false;
+                double t1 = value(n, 2, m);
+                double t2 = value(n, 2, m - 1);
+                // threshold to avoid adding new point too close to existing point
+                double thresh = min(1., 1.e-1 * (t2 - t1));
+                z1 = d.grid(m);
+                z2 = d.grid(m - 1);
+                if (fabs(t - t1) <= thresh) {
+                    zfixed = z1;
+                    fixedpt = true;
+                } else if (fabs(t2 - t) <= thresh) {
+                    zfixed = z2;
+                    fixedpt = true;
+                } else if ((t1 < t) && (t < t2)) {
+                    mfixed = m;
+                    zfixed = (z1 - z2) / (t1 - t2) * (t - t2) + z2;
+                    fixedpt = true;
+                }
 
-        // Skip if two-point control is not enabled
-        if (!d_axis->twoPointControlEnabled()) {
-            continue;
-        }
-
-        for (size_t m = np-1; m > 0; m--) {
-            // Check if the absolute difference between the two temperatures is less than epsilon
-            if (std::abs(value(n,2,m) - t) < epsilon) {
-                d_axis->m_zOxid = d_axis->grid(m);
-                d_axis->m_tOxid = value(n,2,m);
-                return;
-            } 
-
-            if ((value(n,2,m) - t) * (value(n,2,m-1) - t) < 0.0) {
-                d_axis->m_zOxid = d_axis->grid(m-1);
-                d_axis->m_tOxid = value(n,2,m-1);
-                return;
+                if (fixedpt) {
+                    d_axis->m_zOxid = zfixed;
+                    d_axis->m_tOxid = t;
+                    break;
+                }
             }
         }
+
+        // copy solution domain and push back values
+        for (size_t m = 0; m < npnow; m++) {
+            // add the current grid point to the new grid
+            znew.push_back(d.grid(m));
+
+            // do the same for the solution at this point
+            for (size_t i = 0; i < comp; i++) {
+                xnew.push_back(value(n, i, m));
+            }
+            if (m == mfixed) {
+                // add new point at zfixed (mfixed is not npos)
+                znew.push_back(zfixed);
+                np++;
+                double interp_factor = (zfixed - z2) / (z1 - z2);
+                // for each component, linearly interpolate
+                // the solution to this point
+                for (size_t i = 0; i < comp; i++) {
+                    double xmid = interp_factor*(value(n, i, m) - value(n, i, m - 1)) + value(n,i,m - 1);
+                    xnew.push_back(xmid);
+                }
+            }
+        }
+        dsize.push_back(znew.size() - nstart);
     }
+
+    // At this point, the new grid znew and the new solution vector xnew have
+    // been constructed, but the domains themselves have not yet been modified.
+    // Now update each domain with the new grid.
+    size_t gridstart = 0;
+    for (size_t n = 0; n < nDomains(); n++) {
+        Domain1D& d = domain(n);
+        size_t gridsize = dsize[n];
+        d.setupGrid(gridsize, &znew[gridstart]);
+        gridstart += gridsize;
+    }
+
+    // Replace the current solution vector with the new one
+    *m_state = xnew;
+
+    resize();
+    finalize();
+    // return np;
 }
 
 double Sim1D::fixedTemperature()

@@ -157,7 +157,7 @@ public:
     }
 
     //! The current fuel internal boundary temperature
-    double fuelInternalBoundaryTemperature() const {
+    doublereal fuelInternalBoundaryTemperature() const {
         if ((m_onePointControl || m_twoPointControl) && (m_zFuel != Undef)) {
             return m_tFuel;
         }
@@ -171,7 +171,7 @@ public:
     }
 
     //! The current oxidizer side internal boundary temperature
-    double oxidInternalBoundaryTemperature() const {
+    doublereal oxidInternalBoundaryTemperature() const {
         if (m_twoPointControl && (m_zOxid != Undef)) {
             return m_tOxid;
         }

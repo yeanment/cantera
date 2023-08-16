@@ -346,7 +346,74 @@ void StFlow::_finalize(const doublereal* x)
                 }
             }
         }
+    } else if (m_type == cAxisymmetricStagnationFlow){
+        if (m_onePointControl){
+            // Check m_tFuel
+            if (m_tFuel != Undef) {
+                for (size_t j = 0; j < m_points; j++) {
+                    if (z(j) == m_zFuel) {
+                        return; // fixed point is already set correctly
+                    }
+                }
+
+                for (size_t j = 0; j < m_points - 1; j++) {
+                    // Find where the temperature profile crosses the current
+                    // fixed temperature.
+                    if ((T(x, j) - m_tFuel) * (T(x, j+1) - m_tFuel) <= 0.0) {
+                        m_tFuel = T(x, j+1);
+                        m_zFuel = z(j+1);
+                        return;
+                    }
+                }
+            }
+        } else if (m_twoPointControl) {
+            // check tFuel and tOxid
+            if (m_tFuel != Undef) {
+                bool check = false;
+                for (size_t j = 0; j < m_points; j++) {
+                    if (z(j) == m_zFuel) {
+                        check = true;
+                        break; // fixed point is already set correctly
+                    }
+                }
+                if (!check){
+                    for (size_t j = 0; j < m_points - 1; j++) {
+                        // Find where the temperature profile crosses the current
+                        // fixed temperature.
+                        if ((T(x, j) - m_tFuel) * (T(x, j+1) - m_tFuel) <= 0.0) {
+                            m_tFuel = T(x, j+1);
+                            m_zFuel = z(j+1);
+                            check = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (m_tOxid != Undef) {
+                bool check = false;
+                for (size_t j = m_points - 1; j > 0; j--) {
+                    if (z(j) == m_zOxid) {
+                        check = true;
+                        break; // fixed point is already set correctly
+                    }
+                }
+                if (!check){
+                    for (size_t j = m_points - 1; j > 0; j--) {
+                        // Find where the temperature profile crosses the current
+                        // fixed temperature.
+                        if ((T(x, j) - m_tOxid) * (T(x, j-1) - m_tOxid) <= 0.0) {
+                            m_tOxid = T(x, j-1);
+                            m_zOxid = z(j-1);
+                            check = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
+
 }
 
 void StFlow::eval(size_t jg, doublereal* xg,
@@ -502,10 +569,8 @@ void StFlow::evalResidual(double* x, double* rsd, int* diag,
             rsd[index(c_offset_L,0)] = -rho_u(x,0);
 
             // have different boundary type with different flame control method
-            if (!m_onePointControl && !m_twoPointControl) {
-                rsd[index(c_offset_L,0)] = -rho_u(x,0);
-                rsd[index(c_offset_Uo,0)] = Uo(x,1) - Uo(x,0);
-            } else if (m_onePointControl) {
+            rsd[index(c_offset_Uo,0)] = Uo(x,1) - Uo(x,0);
+            if (m_onePointControl) {
                 rsd[index(c_offset_L,0)] = lambda(x,1) - lambda(x,0);
                 rsd[index(c_offset_Uo,0)] = Uo(x,0);
             } else if (m_twoPointControl) {
@@ -597,11 +662,9 @@ void StFlow::evalResidual(double* x, double* rsd, int* diag,
                 diag[index(c_offset_T, j)] = 0;
             }
 
-            // rsd[index(c_offset_L, j)] = lambda(x,j) - lambda(x,j-1);
-            if (!m_onePointControl && !m_twoPointControl) {
-                rsd[index(c_offset_L, j)] = lambda(x,j) - lambda(x,j-1);
-                rsd[index(c_offset_Uo, j)] = Uo(x,j+1) - Uo(x,j);
-            } else if (m_onePointControl) {
+            rsd[index(c_offset_L, j)] = lambda(x,j) - lambda(x,j-1);
+            rsd[index(c_offset_Uo, j)] = Uo(x,j+1) - Uo(x,j);
+            if (m_onePointControl) {
                 if (grid(j) > m_zFuel) {
                     rsd[index(c_offset_L, j)] = lambda(x,j) - lambda(x,j-1);
                 } else if (grid(j) == m_zFuel) {
@@ -1104,9 +1167,10 @@ void StFlow::evalRightBoundary(double* x, double* rsd, int* diag, double rdt)
     doublereal sum = 0.0;
     rsd[index(c_offset_L, j)] = lambda(x,j) - lambda(x,j-1);
     diag[index(c_offset_L, j)] = 0;
-    if (!m_onePointControl && !m_twoPointControl) {
-        rsd[index(c_offset_Uo,j)] = Uo(x,j);
-    } else {
+    rsd[index(c_offset_Uo,j)] = Uo(x,j);
+    if (m_onePointControl){
+        rsd[index(c_offset_Uo, j)] = Uo(x,j) - Uo(x,j-1);
+    } else if (m_twoPointControl) {
         rsd[index(c_offset_Uo, j)] = Uo(x,j) - Uo(x,j-1);
     }
     diag[index(c_offset_Uo, j)] = 0;
@@ -1145,6 +1209,29 @@ void StFlow::evalContinuity(size_t j, double* x, double* rsd, int* diag, double 
         rsd[index(c_offset_U,j)] =
             -(rho_u(x,j+1) - rho_u(x,j))/m_dz[j]
             -(density(j+1)*V(x,j+1) + density(j)*V(x,j));
+
+        // // Modify only for one-point control
+        // if (m_type == cAxisymmetricStagnationFlow && m_onePointControl){
+        //     if (grid(j) > m_zFuel) {
+        //         // To the right
+        //         rsd[index(c_offset_U,j)] =
+        //             - (rho_u(x,j) - rho_u(x,j-1))/m_dz[j-1]
+        //             - (density(j-1)*V(x,j-1) + density(j)*V(x,j));
+        //     } else if (grid(j) == m_zFuel) {
+        //         // if (m_do_energy[j]) {
+        //         rsd[index(c_offset_U,j)] = (T(x,j) - m_tFuel);
+        //         // } else {
+        //         //     rsd[index(c_offset_U,j)] = (rho_u(x,j)
+        //         //                                 - m_rho[0]*0.3);
+        //         // }
+        //     } else if (grid(j) < m_zFuel) {
+        //         // To the left
+        //         rsd[index(c_offset_U,j)] =
+        //             - (rho_u(x,j+1) - rho_u(x,j))/m_dz[j]
+        //             - (density(j+1)*V(x,j+1) + density(j)*V(x,j));
+        //     }
+        // }
+
     } else {
         if (grid(j) > m_zfixed) {
             rsd[index(c_offset_U,j)] =

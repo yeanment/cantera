@@ -224,7 +224,11 @@ void Inlet1D::eval(size_t jg, double* xg, double* rg,
         }
 
         // Point-control
-        if (m_flow->onePointControlEnabled() || m_flow->twoPointControlEnabled()) {
+        if (m_flow->onePointControlEnabled()) {
+            m_mdot = -(m_flow->density(last_index) * xb[c_offset_Uo]);
+            rb[c_offset_U] += m_mdot; // u
+            rb[c_offset_Uo] += m_mdot/m_flow->density(last_index);
+        } else if (m_flow->twoPointControlEnabled()) {
             m_mdot = -(m_flow->density(last_index) * xb[c_offset_Uo]);
             rb[c_offset_U] += m_mdot; // u
             rb[c_offset_Uo] += 0;
@@ -233,7 +237,7 @@ void Inlet1D::eval(size_t jg, double* xg, double* rg,
             rb[c_offset_Uo] += m_mdot/m_flow->density(last_index);
         }
 
-        rb[c_offset_U] += m_mdot; // u
+        // rb[c_offset_U] += m_mdot; // u
         for (size_t k = 0; k < m_nsp; k++) {
             if (k != m_flow_left->rightExcessSpecies()) {
                 rb[c_offset_Y+k] += m_mdot * m_yin[k];

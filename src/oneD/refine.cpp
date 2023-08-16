@@ -186,6 +186,11 @@ int Refiner::analyze(size_t n, const doublereal* z,
         if (fflame && !fflame->fixed_mdot() && z[j] == fflame->m_zfixed) {
             m_keep[j] = 1;
         }
+
+        if (fflame && !fflame->fixed_mdot() && 
+           (z[j] == fflame->m_zFuel || z[j] == fflame->m_zOxid)) {
+            m_keep[j] = 1;
+        }
     }
 
     // Don't allow pruning to remove multiple adjacent grid points
