@@ -202,15 +202,15 @@ void Inlet1D::eval(size_t jg, double* xg, double* rg,
             m_mdot = m_flow->density(0) * xb[c_offset_U];
             rb[c_offset_L] = xb[c_offset_L];
         } else if (m_flow->isStrained()) {
-            // The flow domain sets this to -rho*u. Add mdot to specify the mass
-            // flow rate
-            rb[c_offset_L] += m_mdot;
-
             if (m_flow->onePointControlEnabled()) {
                 m_mdot = m_flow->density(0)*xb[c_offset_U];
                 // Release the boundary conditions at inlet side
                 rb[c_offset_L] += xb[c_offset_L];
-            } 
+            } else {
+                // The flow domain sets this to -rho*u. Add mdot to specify the mass
+                // flow rate
+                rb[c_offset_L] += m_mdot;
+            }
 
             // spreading rate. The flow domain sets this to V(0),
             // so for finite spreading rate subtract m_V0.

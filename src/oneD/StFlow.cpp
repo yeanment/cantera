@@ -1137,7 +1137,7 @@ void StFlow::evalRightBoundary(double* x, double* rsd, int* diag, double rdt)
     diag[index(c_offset_Y + rightExcessSpecies(), j)] = 0;
     if (m_usesLambda) {
         rsd[index(c_offset_U, j)] = rho_u(x, j);
-        rsd[index(c_offset_L, j)] = lambda(x, j);
+        rsd[index(c_offset_L, j)] = lambda(x, j) - lambda(x, j-1);
     } else {
         rsd[index(c_offset_U, j)] = rho_u(x, j) - rho_u(x, j-1);
         rsd[index(c_offset_L, j)] = lambda(x, j) - lambda(x, j-1);
