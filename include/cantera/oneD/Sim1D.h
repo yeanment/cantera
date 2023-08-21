@@ -244,13 +244,13 @@ public:
     //! Add node for fixed temperature point of freely propagating flame
     int setFixedTemperature(double t);
 
-    //! Set the fuel internal boundary location. This is used for one/two-point
+    //! Set the left internal boundary location. This is used for one/two-point
     //! flame control for stagnation flows.
-    void setFuelInternalBoundary(double temperature);
+    void setLeftInternalBoundary(double temp);
 
-    //! Set the oxidizer internal boundary location. This is used for one/two-point
+    //! Set the right internal boundary location. This is used for one/two-point
     //! flame control for stagnation flows.
-    void setOxidizerInternalBoundary(double temperature);
+    void setRightInternalBoundary(double temp);
 
     //! Return temperature at the point used to fix the flame location
     double fixedTemperature();

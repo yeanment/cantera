@@ -77,14 +77,16 @@ cdef extern from "cantera/oneD/StFlow.h":
         double radiativeHeatLoss(size_t)
         double pressure()
         void setFixedTempProfile(vector[double]&, vector[double]&)
-        double fuelInternalBoundaryTemperature()
-        double oxidInternalBoundaryTemperature()
-        void setFuelInternalBoundaryTemperature(double)
-        void setOxidInternalBoundaryTemperature(double)
+        double leftInternalBoundaryTemperature()
+        double rightInternalBoundaryTemperature()
+        void setLeftInternalBoundaryTemperature(double)
+        void setRightInternalBoundaryTemperature(double)
         void enableOnePointControl(cbool)
         cbool onePointControlEnabled()
         void enableTwoPointControl(cbool)
         cbool twoPointControlEnabled()
+        void setOffsetPointControl(size_t) except +translate_exception
+        size_t offsetPointControl()
         size_t getSolvingStage() except +translate_exception
         void setSolvingStage(size_t) except +translate_exception
         void solveElectricField() except +translate_exception
@@ -147,8 +149,8 @@ cdef extern from "cantera/oneD/Sim1D.h":
         size_t maxGridPoints(size_t) except +translate_exception
         void setGridMin(int, double) except +translate_exception
         void setFixedTemperature(double) except +translate_exception
-        void setFuelInternalBoundary(double) except +translate_exception
-        void setOxidizerInternalBoundary(double) except +translate_exception
+        void setLeftInternalBoundary(double) except +translate_exception
+        void setRightInternalBoundary(double) except +translate_exception
         double fixedTemperature()
         double fixedTemperatureLocation()
         void setInterrupt(CxxFunc1*) except +translate_exception

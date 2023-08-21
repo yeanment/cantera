@@ -187,7 +187,7 @@ int Refiner::analyze(size_t n, const double* z, const double* x)
 
         if (fflame && fflame->isStrained() && 
             (fflame->twoPointControlEnabled() || fflame->onePointControlEnabled() )&& 
-            (z[j] == fflame->m_zFuel || z[j] == fflame->m_zOxid)) {
+            (z[j] == fflame->m_zLeft || z[j] == fflame->m_zRight)) {
             m_keep[j] = 1;
         }
     }

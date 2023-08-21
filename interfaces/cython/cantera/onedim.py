@@ -262,6 +262,17 @@ class FlameBase(Sim1D):
         self.flame.twoPointControl_enabled = enable
 
     @property
+    def offsetPointControl(self):
+        """
+        Get/Set whether or not to active one point flame control.
+        """
+        return self.flame.offsetPointControl
+
+    @offsetPointControl.setter
+    def offsetPointControl(self, offset):
+        self.flame.offsetPointControl = offset
+
+    @property
     def soret_enabled(self):
         """
         Get/Set whether or not to include diffusive mass fluxes due to the
@@ -311,22 +322,22 @@ class FlameBase(Sim1D):
         self.flame.P = P
 
     @property
-    def tFuel(self):
+    def tLeft(self):
         """ Get/Set the fuel side internal boundary temperature [K] """
-        return self.flame.tFuel
+        return self.flame.tLeft
 
-    @tFuel.setter
-    def tFuel(self, T):
-        self.flame.tFuel = T
+    @tLeft.setter
+    def tLeft(self, T):
+        self.flame.tLeft = T
 
     @property
-    def tOxid(self):
+    def tRight(self):
         """ Get/Set the oxidizer side internal boundary temperature [K] """
-        return self.flame.tOxid
+        return self.flame.tRight
 
-    @tOxid.setter
-    def tOxid(self, T):
-        self.flame.tOxid = T
+    @tRight.setter
+    def tRight(self, T):
+        self.flame.tRight = T
 
     @property
     def T(self):

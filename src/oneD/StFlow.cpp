@@ -348,57 +348,6 @@ void StFlow::_finalize(const double* x)
                 }
             }
         }
-    } else if (m_usesLambda) {
-        if (m_onePointControl || m_twoPointControl){
-            // Check m_tFuel
-            if (m_tFuel != Undef) {
-                bool check_ok = false;
-                for (size_t j = 0; j < m_points; j++) {
-                    if (z(j) == m_zFuel) {
-                        check_ok = true; // fixed point is already set correctly
-                        break;
-                    }
-                }
-
-                if (!check_ok)
-                {
-                    for (size_t j = 0; j < m_points - 1; j++) {
-                        // Find where the temperature profile crosses the current
-                        // fixed temperature.
-                        if ((T(x, j) - m_tFuel) * (T(x, j+1) - m_tFuel) <= 0.0) {
-                            m_tFuel = T(x, j+1);
-                            m_zFuel = z(j+1);
-                            check_ok = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        if (m_twoPointControl) {
-            // check d tOxid
-            if (m_tOxid != Undef) {
-                bool check_ok = false;
-                for (size_t j = m_points - 1; j > 0; j--) {
-                    if (z(j) == m_zOxid) {
-                        check_ok = true;
-                        break; // fixed point is already set correctly
-                    }
-                }
-                if (!check_ok){
-                    for (size_t j = m_points - 1; j > 0; j--) {
-                        // Find where the temperature profile crosses the current
-                        // fixed temperature.
-                        if ((T(x, j) - m_tOxid) * (T(x, j-1) - m_tOxid) <= 0.0) {
-                            m_tOxid = T(x, j-1);
-                            m_zOxid = z(j-1);
-                            check_ok = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -634,18 +583,23 @@ void StFlow::evalResidual(double* x, double* rsd, int* diag,
             if (m_usesLambda) {
                 rsd[index(c_offset_L, j)] = lambda(x, j) - lambda(x, j - 1);
                 if (m_onePointControl) {
-                    if (grid(j) > m_zFuel) {
+                    if (grid(j) > m_zLeft) {
                         rsd[index(c_offset_L, j)] = lambda(x,j) - lambda(x,j-1);
-                    } else if (grid(j) == m_zFuel) {
+                    } else if (grid(j) == m_zLeft) {
                         // if (m_do_energy[j]) {
-                            rsd[index(c_offset_L, j)] = T(x,j) - m_tFuel;
+                            if (m_offsetPointControl == c_offset_T){
+                                rsd[index(c_offset_L, j)] = T(x,j) - m_tLeft;
+                            } else {
+                                size_t k = m_offsetPointControl - c_offset_Y;
+                                rsd[index(c_offset_L, j)] = Y(x,k,j) - m_tLeft;
+                            }                            
                         // } else {
                         //     // Avoid singular Jac, no meaning here
                         //     rsd[index(c_offset_L, j)] = - (rho_u(x,j)
                         //                                  - m_rho[0]*0.3); // why 0.3?
                         // }
                         
-                    } else if (grid(j) < m_zFuel) {
+                    } else if (grid(j) < m_zLeft) {
                         rsd[index(c_offset_L, j)] = lambda(x,j+1) - lambda(x,j);
                     }
                 }
@@ -860,14 +814,14 @@ AnyMap StFlow::getMeta() const
     // One and two-point control meta data
     if (m_onePointControl) {
         state["point-control"]["type"] = "one-point";
-        state["point-control"]["location"] = m_zFuel;
-        state["point-control"]["temperature"] = m_tFuel;
+        state["point-control"]["location"] = m_zLeft;
+        state["point-control"]["temperature"] = m_tLeft;
     } else if (m_twoPointControl) {
         state["point-control"]["type"] = "two-point";
-        state["point-control"]["fuel-location"] = m_zFuel;
-        state["point-control"]["oxidizer-location"] = m_zOxid;
-        state["point-control"]["fuel-temperature"] = m_tFuel;
-        state["point-control"]["oxidizer-temperature"] = m_tOxid;
+        state["point-control"]["left-location"] = m_zLeft;
+        state["point-control"]["right-location"] = m_zRight;
+        state["point-control"]["left-temperature"] = m_tLeft;
+        state["point-control"]["right-temperature"] = m_tRight;
     }
 
     return state;
@@ -1011,15 +965,15 @@ void StFlow::setMeta(const AnyMap& state)
         if (pc["type"] == "one-point") {
             m_onePointControl = true;
             m_twoPointControl = false;
-            m_zFuel = pc["location"].asDouble();
-            m_tFuel = pc["temperature"].asDouble();
+            m_zLeft = pc["location"].asDouble();
+            m_tLeft = pc["temperature"].asDouble();
         } else if (pc["type"] == "two-point") {
             m_onePointControl = false;
             m_twoPointControl = true;
-            m_zFuel = pc["fuel-location"].asDouble();
-            m_zOxid = pc["oxidizer-location"].asDouble();
-            m_tFuel = pc["fuel-temperature"].asDouble();
-            m_tOxid = pc["oxidizer-temperature"].asDouble();
+            m_zLeft = pc["left-location"].asDouble();
+            m_zRight = pc["right-location"].asDouble();
+            m_tLeft = pc["left-temperature"].asDouble();
+            m_tRight = pc["right-temperature"].asDouble();
         }
     }
 }

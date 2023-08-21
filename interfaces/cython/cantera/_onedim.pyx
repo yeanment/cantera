@@ -515,19 +515,19 @@ cdef class _FlowBase(Domain1D):
         def __set__(self, P):
             self.flow.setPressure(P)
 
-    property tFuel:
-        """ Fuel side internal boundary temperature [K] """
+    property tLeft:
+        """ Left side internal boundary temperature [K] """
         def __get__(self):
-            return self.flow.fuelInternalBoundaryTemperature()
+            return self.flow.leftInternalBoundaryTemperature()
         def __set__(self, T):
-            self.flow.setFuelInternalBoundaryTemperature(T)
+            self.flow.setLeftInternalBoundaryTemperature(T)
 
-    property tOxid:
-        """ Oxidizer side internal boundary temperature [K] """
+    property tRight:
+        """ Right side internal boundary temperature [K] """
         def __get__(self):
-            return self.flow.oxidInternalBoundaryTemperature()
+            return self.flow.rightInternalBoundaryTemperature()
         def __set__(self, T):
-            self.flow.setOxidInternalBoundaryTemperature(T)
+            self.flow.setRightInternalBoundaryTemperature(T)
 
     property transport_model:
         """
@@ -592,6 +592,13 @@ cdef class _FlowBase(Domain1D):
             return self.flow.onePointControlEnabled()
         def __set__(self, enable):
             self.flow.enableOnePointControl(<cbool>enable)
+
+    property offsetPointControl:
+        """ Determines whether or not to enable two point flame control"""
+        def __get__(self):
+            return self.flow.offsetPointControl()
+        def __set__(self, offset):
+            self.flow.setOffsetPointControl(offset)
 
     property twoPointControl_enabled:
         """ Determines whether or not to enable two point flame control"""
@@ -1609,17 +1616,17 @@ cdef class Sim1D:
         def __set__(self, T):
             self.sim.setFixedTemperature(T)
 
-    def set_fuel_side_boundary(self, T):
+    def set_left_side_boundary(self, T):
         """
         Set the fuel side internal boundary with approximate temperature.
         """
-        self.sim.setFuelInternalBoundary(T)
+        self.sim.setLeftInternalBoundary(T)
 
-    def set_oxid_side_boundary(self, T):
+    def set_right_side_boundary(self, T):
         """
         Set the xoidizer side internal boundary with approximate temperature.
         """
-        self.sim.setOxidizerInternalBoundary(T)
+        self.sim.setRightInternalBoundary(T)
 
     property fixed_temperature_location:
         """

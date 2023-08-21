@@ -761,14 +761,14 @@ int Sim1D::setFixedTemperature(double t)
     return np;
 }
 
-void Sim1D::setFuelInternalBoundary(double t)
+void Sim1D::setLeftInternalBoundary(double t)
 {
     int np = 0;
     vector<double> znew, xnew;
     double zfixed = 0.0;
     double z1 = 0.0, z2 = 0.0;
     vector<size_t> dsize;
-
+    
     for (size_t n = 0; n < nDomains(); n++) {
         Domain1D& d = domain(n);
         size_t comp = d.nComponents();
@@ -780,10 +780,11 @@ void Sim1D::setFuelInternalBoundary(double t)
         size_t nstart = znew.size();
         if (d_axis && d_axis ->isStrained() && 
             (d_axis->onePointControlEnabled() || d_axis->twoPointControlEnabled())) {
+            size_t offset_now = d_axis->offsetPointControl();
             for (size_t m = 0; m < npnow - 1; m++) {
                 bool fixedpt = false;
-                double t1 = value(n, c_offset_T, m);
-                double t2 = value(n, c_offset_T, m + 1);
+                double t1 = value(n, offset_now, m);
+                double t2 = value(n, offset_now, m + 1);
                 // threshold to avoid adding new point too close to existing point
                 double thresh = min(1., 1.e-1 * (t2 - t1));
                 z1 = d.grid(m);
@@ -794,15 +795,15 @@ void Sim1D::setFuelInternalBoundary(double t)
                 } else if (fabs(t2 - t) <= thresh) {
                     zfixed = z2;
                     fixedpt = true;
-                } else if ((t1 < t) && (t < t2)) {
+                } else if (((t1 < t) && (t < t2)) || ((t2 < t) && (t < t1))) {
                     mfixed = m;
                     zfixed = (z1 - z2) / (t1 - t2) * (t - t2) + z2;
                     fixedpt = true;
                 }
 
                 if (fixedpt) {
-                    d_axis->m_zFuel = zfixed;
-                    d_axis->m_tFuel = t;
+                    d_axis->m_zLeft = zfixed;
+                    d_axis->m_tLeft = t;
                     break;
                 }
             }
@@ -852,7 +853,7 @@ void Sim1D::setFuelInternalBoundary(double t)
     // return np;
 }
 
-void Sim1D::setOxidizerInternalBoundary(double t)
+void Sim1D::setRightInternalBoundary(double t)
 {
     int np = 0;
     vector<double> znew, xnew;
@@ -870,10 +871,11 @@ void Sim1D::setOxidizerInternalBoundary(double t)
         size_t npnow = d.nPoints();
         size_t nstart = znew.size();
         if (d_axis && d_axis ->isStrained() && d_axis->twoPointControlEnabled()) {
+            size_t offset_now = d_axis->offsetPointControl();
             for (size_t m = npnow - 1; m > 0; m--) {
                 bool fixedpt = false;
-                double t1 = value(n, c_offset_T, m);
-                double t2 = value(n, c_offset_T, m - 1);
+                double t1 = value(n, offset_now, m);
+                double t2 = value(n, offset_now, m - 1);
                 // threshold to avoid adding new point too close to existing point
                 double thresh = min(1., 1.e-1 * (t2 - t1));
                 z1 = d.grid(m);
@@ -884,15 +886,15 @@ void Sim1D::setOxidizerInternalBoundary(double t)
                 } else if (fabs(t2 - t) <= thresh) {
                     zfixed = z2;
                     fixedpt = true;
-                } else if ((t1 < t) && (t < t2)) {
+                } else if (((t1 < t) && (t < t2)) || ((t2 < t) && (t < t1))) {
                     mfixed = m;
                     zfixed = (z1 - z2) / (t1 - t2) * (t - t2) + z2;
                     fixedpt = true;
                 }
 
                 if (fixedpt) {
-                    d_axis->m_zOxid = zfixed;
-                    d_axis->m_tOxid = t;
+                    d_axis->m_zRight = zfixed;
+                    d_axis->m_tRight = t;
                     break;
                 }
             }

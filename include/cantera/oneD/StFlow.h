@@ -163,30 +163,30 @@ public:
     }
 
     //! The current fuel internal boundary temperature
-    double fuelInternalBoundaryTemperature() const {
-        if ((m_onePointControl || m_twoPointControl) && (m_zFuel != Undef)) {
-            return m_tFuel;
+    double leftInternalBoundaryTemperature() const {
+        if ((m_onePointControl || m_twoPointControl) && (m_zLeft != Undef)) {
+            return m_tLeft;
         }
     }
 
     //! Set the temperature in the fuel side internal boundary
-    void setFuelInternalBoundaryTemperature(double tFuel) {
-        if ((m_onePointControl || m_twoPointControl) && (m_zFuel != Undef)) {
-            m_tFuel = tFuel;
+    void setLeftInternalBoundaryTemperature(double tLeft) {
+        if ((m_onePointControl || m_twoPointControl) && (m_zLeft != Undef)) {
+            m_tLeft = tLeft;
         }
     }
 
     //! The current oxidizer side internal boundary temperature
-    double oxidInternalBoundaryTemperature() const {
-        if (m_twoPointControl && (m_zOxid != Undef)) {
-            return m_tOxid;
+    double rightInternalBoundaryTemperature() const {
+        if (m_twoPointControl && (m_zRight != Undef)) {
+            return m_tRight;
         }
     }
 
     //! Set the temperature in the oxidizer side internal boundary
-    void setOxidInternalBoundaryTemperature(double tOxid) {
-        if (m_twoPointControl && (m_zOxid != Undef)) {
-            m_tOxid = tOxid;
+    void setRightInternalBoundaryTemperature(double tRight) {
+        if (m_twoPointControl && (m_zRight != Undef)) {
+            m_tRight = tRight;
         }
     }
 
@@ -404,6 +404,25 @@ public:
     bool twoPointControlEnabled() {
         return m_twoPointControl;
     }
+
+    //! Set the speceis of one-point flame control
+    void setOffsetPointControl(size_t idxPointControl) {
+        if (idxPointControl == 0){
+            m_offsetPointControl = c_offset_T;
+        } else {
+            if (idxPointControl > m_nsp) {
+                throw CanteraError("StFlow::setOffsetPointControl",
+                                    "Invalid species for point control specified");
+            }
+            m_offsetPointControl = c_offset_Y + idxPointControl - 1;
+        }
+    }
+
+    //! Index of the species for point control
+    size_t offsetPointControl() {
+        return m_offsetPointControl;
+    }
+
 
 protected:
     AnyMap getMeta() const override;
@@ -634,17 +653,20 @@ public:
     //! Temperature at the point used to fix the flame location
     double m_tfixed = -1.0;
 
-    //! The location of the internal boundary at fuel side
-    double m_zFuel = Undef;
+    //! The location of the internal boundary at left side
+    double m_zLeft = Undef;
 
-    //! The fixed temperature at the fuel side internal boundary
-    double m_tFuel = Undef;
+    //! The fixed temperature at the left side internal boundary
+    double m_tLeft = Undef;
 
-    //! The location of the internal boundary at oxidizer side
-    double m_zOxid = Undef;
+    //! The location of the internal boundary at right side
+    double m_zRight = Undef;
 
-    //! The fixed temperature at the oxidizer side internal boundary
-    double m_tOxid = Undef;
+    //! The fixed temperature at the right side internal boundary
+    double m_tRight = Undef;
+
+    //! The added equation for point control method, default is temperature
+    size_t m_offsetPointControl = c_offset_T;
 
 private:
     vector<double> m_ybar;
