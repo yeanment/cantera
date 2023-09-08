@@ -40,12 +40,6 @@ private:
 //! @{
 
 /**
- *  Create a new kinetics manager.
- *  @deprecated To be removed after %Cantera 3.0; superseded by newKinetics().
- */
-Kinetics* newKineticsMgr(const string& model);
-
-/**
  *  Create a new Kinetics instance.
  */
 shared_ptr<Kinetics> newKinetics(const string& model);
@@ -67,14 +61,6 @@ shared_ptr<Kinetics> newKinetics(const vector<shared_ptr<ThermoPhase>>& phases,
                                  const AnyMap& rootNode=AnyMap(),
                                  shared_ptr<Solution> soln={});
 
-//! @brief Create a new kinetics manager, initialize it, and add reactions.
-//! @see newKinetics(const vector<shared_ptr<ThermoPhase>>&, const AnyMap&, const AnyMap&, shared_ptr<Solution>)
-//! @deprecated To be removed after %Cantera 3.0;
-//!     superseded by newKinetics() returning shared_ptr
-unique_ptr<Kinetics> newKinetics(const vector<ThermoPhase*>& phases,
-                                 const AnyMap& phaseNode,
-                                 const AnyMap& rootNode=AnyMap());
-
 //! Create a new kinetics manager, initialize it, and add reactions.
 /*!
  * @param phases      Vector of phases containing species which participate in
@@ -82,24 +68,9 @@ unique_ptr<Kinetics> newKinetics(const vector<ThermoPhase*>& phases,
  *     phase) listed first.
  * @param filename    File containing the phase definition for the phase where
  *     the reactions occur. Searches the %Cantera data for this file.
- * @param phase_name  The name of the reacting phase in the input file (that is, the
- *     name of the first phase in the `phases` vector)
- * @deprecated The 'phase_name' argument is deprecated and will be removed after
- *     %Cantera 3.0.
- * @since Starting with %Cantera 3.0, if the reacting phase is not the first item in
- *     the `phases` vector, a deprecation warning will be issued. In %Cantera 3.1, this
- *     warning will become an error.
  */
 shared_ptr<Kinetics> newKinetics(const vector<shared_ptr<ThermoPhase>>& phases,
-                                 const string& filename,
-                                 const string& phase_name="");
-
-//! @copydoc newKinetics(const vector<shared_ptr<ThermoPhase>>&, const string&, const string&)
-//! @deprecated To be removed after %Cantera 3.0;
-//!     superseded by newKinetics() returning shared_ptr
-unique_ptr<Kinetics> newKinetics(const vector<ThermoPhase*>& phases,
-                                 const string& filename,
-                                 const string& phase_name);
+                                 const string& filename);
 
 /**
  * Add reactions to a Kinetics object.

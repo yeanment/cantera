@@ -179,7 +179,7 @@ class Option:
         if len(asterisks) == 1:
             # catch unbalanced '*', for example in '*nix'
             found = f"*{asterisks[0]}"
-            replacement = f"\{found}"
+            replacement = fr"\{found}"
             description = description.replace(found, replacement)
 
         return f"{'':<{indent}}{description}\n"
@@ -210,7 +210,7 @@ class Option:
             return f"{level1}{title}: {decorate(defaults)}\n"
 
         # First line of default options
-        compilers = {"cl": "MSVC", "gcc": "GCC", "icc": "ICC", "clang": "Clang"}
+        compilers = {"cl": "MSVC", "gcc": "GCC", "clang": "Clang"}
         toolchains = {"mingw", "intel", "msvc"}
         if any(d in compilers for d in defaults):
             comment = "compiler"
@@ -721,11 +721,23 @@ def regression_test(target: "LFSNode", source: "LFSNode", env: "SCEnvironment"):
     else:
         output_name = Path("test_output.txt")
 
+    dir = Path(target[0].dir.abspath)
+
+    comparisons = env["test_comparisons"]
+    if blessed_name is not None:
+        comparisons.append((Path(blessed_name), output_name))
+
+    # Remove pre-existing output files to prevent tests passing based on outdated
+    # output files
+    for _, output in comparisons:
+        outpath = dir.joinpath(output)
+        if outpath.exists():
+            outpath.unlink()
+
     # command line options
     clopts = env["test_command_options"].split()
 
     # Run the test program
-    dir = Path(target[0].dir.abspath)
     ret = subprocess.run(
         [program.abspath] + clopts + clargs,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -736,14 +748,11 @@ def regression_test(target: "LFSNode", source: "LFSNode", env: "SCEnvironment"):
     dir.joinpath(output_name).write_text(ret.stdout)
 
     diff = 0
-    # Compare output files
-    comparisons = env["test_comparisons"]
-    if blessed_name is not None:
-        comparisons.append((Path(blessed_name), output_name))
 
+    # Compare output files
     for blessed, output in comparisons:
         if not dir.joinpath(output).is_file():
-            logger.info(f"Output file '{output}' not found", print_level=False)
+            logger.error(f"Output file '{output}' not found", print_level=False)
             logger.error("FAILED", print_level=False)
             diff |= TestResult.FAIL
             continue
@@ -755,7 +764,7 @@ def regression_test(target: "LFSNode", source: "LFSNode", env: "SCEnvironment"):
 
     for blessed, output in env["test_profiles"]:
         if not dir.joinpath(output).is_file():
-            logger.info(f"Output file '{output}' not found", print_level=False)
+            logger.error(f"Output file '{output}' not found", print_level=False)
             logger.error("FAILED", print_level=False)
             diff |= TestResult.FAIL
             continue
@@ -1098,24 +1107,45 @@ def add_RegressionTest(env: "SCEnvironment") -> None:
 
 def compiler_flag_list(
         flags: "Union[str, Iterable]",
-        excludes: "Optional[Iterable]" = []
+        compiler: str,
+        excludes: "Optional[Iterable]" = (),
     ) -> "List[str]":
     """
     Separate concatenated compiler flags in ``flags``.
-    Entries listed in ``excludes`` are omitted.
+
+    ``compiler`` is either ``"cl"`` for MSVC or anything else for a different
+    compiler.
+
+    Entries starting with the regular expression patterns in ``excludes`` are omitted.
     """
     if not isinstance(flags, str):
         flags = " ".join(flags)
-    # split concatenated entries. Options can start with "-", "/", or "$"
-    flags = re.findall(r"""(?:^|\ +)        # start of string or leading whitespace
-                       ([-/\$].+?)          # capture start of option
-                       (?=\ +[-/\$]|\ *$)   # start of next option or end of string
-                       """, flags, re.VERBOSE)
-    cc_flags = []
+
+    if compiler == "cl":
+        # Options can start with "/", or "$"
+        expr = r"""(?:^|\ +)           # start of string or leading whitespace
+                   ([/\$].+?)          # capture start of option
+                   (?=\ +[-/\$]|\ *$)  # start of next option or end of string
+                """
+    else:
+        # Options can start with "-"
+        expr = r"""(?:^|\ +)           # start of string or leading whitespace
+                   (-.+?)              # capture start of option
+                   (?=\ +-|\ *$)  # start of next option or end of string
+                """
+
+    # split concatenated entries
+    flags = re.findall(expr, flags, re.VERBOSE)
+
+    # Remove duplicates and excluded items
     excludes = tuple(excludes)
+    cc_flags = []
     for flag in flags:
-        if not flag.startswith(excludes) and flag not in cc_flags:
+        if flag in cc_flags:
+                continue
+        if not any(re.match(exclude, flag) for exclude in excludes):
             cc_flags.append(flag)
+
     return cc_flags
 
 
@@ -1341,9 +1371,6 @@ def setup_python_env(env):
     # further warnings should be issued.
     if env["HAS_CLANG"] and py_version_short == parse_version("3.8"):
         env.Append(CXXFLAGS='-Wno-deprecated-declarations')
-
-    if "icc" in env["CC"]:
-        env.Append(CPPDEFINES={"CYTHON_FALLTHROUGH": " __attribute__((fallthrough))"})
 
     if env['OS'] == 'Darwin':
         env.Append(LINKFLAGS='-undefined dynamic_lookup')

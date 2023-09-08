@@ -68,15 +68,6 @@ extern "C" {
         }
     }
 
-    int domain_type(int i)
-    {
-        try {
-            return DomainCabinet::item(i).domainType();
-        } catch (...) {
-            return handleAllExceptions(-1, ERR);
-        }
-    }
-
     int domain_type3(int i, size_t lennm, char* nm)
     {
         try {
@@ -575,22 +566,6 @@ extern "C" {
             } else {
                 ofstream fout(fname);
                 SimCabinet::item(i).show(fout);
-            }
-            return 0;
-        } catch (...) {
-            return handleAllExceptions(-1, ERR);
-        }
-    }
-
-    int sim1D_showSolution(int i, const char* fname)
-    {
-        try {
-            string fn = string(fname);
-            if (fn == "-") {
-                SimCabinet::item(i).showSolution();
-            } else {
-                ofstream fout(fname);
-                SimCabinet::item(i).showSolution(fout);
             }
             return 0;
         } catch (...) {

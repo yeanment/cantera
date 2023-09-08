@@ -17,7 +17,7 @@ extern "C" {
     CANTERA_CAPI int ct_clearOneDim();
     CANTERA_CAPI int domain_new(const char* type, int i, const char* id);
     CANTERA_CAPI int domain_del(int i);
-    CANTERA_CAPI int domain_type(int i);
+    // @todo: reintroduce domain_type as synonym for domain_type3
     CANTERA_CAPI int domain_type3(int i, size_t lennm, char* nm);
     CANTERA_CAPI size_t domain_index(int i);
     CANTERA_CAPI size_t domain_nComponents(int i);
@@ -75,7 +75,6 @@ extern "C" {
                                       size_t np, const double* pos, size_t nv, const double* v);
     CANTERA_CAPI int sim1D_setFlatProfile(int i, int dom, int comp, double v);
     CANTERA_CAPI int sim1D_show(int i, const char* fname);
-    CANTERA_CAPI int sim1D_showSolution(int i, const char* fname);
     CANTERA_CAPI int sim1D_setTimeStep(int i, double stepsize, size_t ns, const int* nsteps);
     CANTERA_CAPI int sim1D_getInitialSoln(int i);
     CANTERA_CAPI int sim1D_solve(int i, int loglevel, int refine_grid);

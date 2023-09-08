@@ -291,16 +291,6 @@ extern "C" {
         }
     }
 
-    int thermo_setMolarDensity(int n, double ndens)
-    {
-        try {
-            ThermoCabinet::item(n).setMolarDensity(ndens);
-        } catch (...) {
-            return handleAllExceptions(-1, ERR);
-        }
-        return 0;
-    }
-
     double thermo_meanMolecularWeight(int n)
     {
         try {
@@ -709,16 +699,6 @@ extern "C" {
         }
     }
 
-    int thermo_set_RP(int n, double* vals)
-    {
-        try{
-            ThermoCabinet::item(n).setState_RP(vals[0], vals[1]);
-            return 0;
-        } catch (...) {
-            return handleAllExceptions(-1, ERR);
-        }
-    }
-
     int thermo_set_DP(int n, double* vals)
     {
         try{
@@ -1062,6 +1042,8 @@ extern "C" {
 
     //-------------- Kinetics ------------------//
 
+    // @todo Define a new version of this function that does not require the
+    //     unused 'phasename' argument.
     int kin_newFromFile(const char* filename, const char* phasename,
                         int reactingPhase, int neighbor1, int neighbor2,
                         int neighbor3, int neighbor4)
@@ -1081,7 +1063,13 @@ extern "C" {
                     }
                 }
             }
-            shared_ptr<Kinetics> kin = newKinetics(phases, filename, phasename);
+            if (phasename != nullptr) {
+                string phase_str(phasename);
+                if (!phase_str.empty() && phase_str != phases[0]->name()) {
+                    throw CanteraError("kin_newFromFile", "Reacting phase must be first");
+                }
+            }
+            shared_ptr<Kinetics> kin = newKinetics(phases, filename);
             return KineticsCabinet::add(kin);
         } catch (...) {
             return handleAllExceptions(-1, ERR);
@@ -1110,7 +1098,9 @@ extern "C" {
     size_t kin_speciesIndex(int n, const char* nm, const char* ph)
     {
         try {
-            return KineticsCabinet::item(n).kineticsSpeciesIndex(nm, ph);
+            // @todo Introduce a version of this that only takes the 'nm' argument
+            //     and deprecate this one.
+            return KineticsCabinet::item(n).kineticsSpeciesIndex(nm);
         } catch (...) {
             return handleAllExceptions(npos, npos);
         }
@@ -1532,16 +1522,6 @@ extern "C" {
             Transport& tr = TransportCabinet::item(n);
             tr.checkSpeciesArraySize(ld);
             tr.getMultiDiffCoeffs(ld,d);
-            return 0;
-        } catch (...) {
-            return handleAllExceptions(-1, ERR);
-        }
-    }
-
-    int trans_setParameters(int n, int type, int k, double* d)
-    {
-        try {
-            TransportCabinet::item(n).setParameters(type, k, d);
             return 0;
         } catch (...) {
             return handleAllExceptions(-1, ERR);

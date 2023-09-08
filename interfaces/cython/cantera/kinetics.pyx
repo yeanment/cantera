@@ -120,7 +120,10 @@ cdef class Kinetics(_SolutionBase):
             with the Kinetics object. This method will be removed after Cantera 3.1.
         """
         def __get__(self):
-            return self.kinetics.reactionPhaseIndex()
+            warnings.warn("Kinetics.reaction_phase_index: To be removed after "
+                          "Cantera 3.1; The reacting phase is always index 0.",
+                          DeprecationWarning)
+            return 0
 
     def _check_phase_index(self, n):
         if not 0 <= n < self.n_phases:
@@ -183,12 +186,11 @@ cdef class Kinetics(_SolutionBase):
 
     def modify_reaction(self, int irxn, Reaction rxn):
         """
-        Modify the `Reaction` with index ``irxn`` to have the same rate
-        parameters as ``rxn``. ``rxn`` must have the same reactants and products
-        and be of the same type (for example, `ElementaryReaction`, `FalloffReaction`,
-        `PlogReaction`, etc.) as the existing reaction. This method does not
-        modify the third-body efficiencies, reaction orders, or reversibility of
-        the reaction.
+        Modify the `Reaction` with index ``irxn`` to have the same rate parameters as
+        ``rxn``. ``rxn`` must have the same reactants and products and use the same rate
+        parameterization (for example, `ArrheniusRate`, `FalloffRate`, `PlogRate`, etc.)
+        as the existing reaction. This method does not modify the third-body
+        efficiencies, reaction orders, or reversibility of the reaction.
         """
         self.kinetics.modifyReaction(irxn, rxn._reaction)
 
@@ -285,25 +287,6 @@ cdef class Kinetics(_SolutionBase):
             return get_from_sparse(self.kinetics.reactantStoichCoeffs(),
                                    self.n_total_species, self.n_reactions)
 
-    property reactant_stoich_coeffs3:
-        """
-        The array of reactant stoichiometric coefficients. Element ``[k,i]`` of
-        this array is the reactant stoichiometric coefficient of species ``k`` in
-        reaction ``i``.
-
-        For sparse output, set ``ct.use_sparse(True)``.
-
-        .. deprecated:: 3.0
-
-            Method to be removed after Cantera 3.0. Replaceable by
-            `Kinetics.reactant_stoich_coeffs`
-        """
-        def __get__(self):
-            warnings.warn("Kinetics.reactant_stoich_coeffs3: To be removed after "
-                          "Cantera 3.0; use property 'reactant_stoich_coeffs' instead.",
-                          DeprecationWarning)
-            return self.reactant_stoich_coeffs
-
     property product_stoich_coeffs:
         """
         The array of product stoichiometric coefficients. Element ``[k,i]`` of
@@ -319,25 +302,6 @@ cdef class Kinetics(_SolutionBase):
         def __get__(self):
             return get_from_sparse(self.kinetics.productStoichCoeffs(),
                                    self.n_total_species, self.n_reactions)
-
-    property product_stoich_coeffs3:
-        """
-        The array of product stoichiometric coefficients. Element ``[k,i]`` of
-        this array is the product stoichiometric coefficient of species ``k`` in
-        reaction ``i``.
-
-        For sparse output, set ``ct.use_sparse(True)``.
-
-        .. deprecated:: 3.0
-
-            Method to be removed after Cantera 3.0. Replaceable by
-            `Kinetics.product_stoich_coeffs`
-        """
-        def __get__(self):
-            warnings.warn("Kinetics.product_stoich_coeffs3: Method to be removed after "
-                          "Cantera 3.0; use property 'product_stoich_coeffs' instead.",
-                          DeprecationWarning)
-            return self.product_stoich_coeffs
 
     property product_stoich_coeffs_reversible:
         """
@@ -432,7 +396,7 @@ cdef class Kinetics(_SolutionBase):
         """
         Property setting behavior of derivative evaluation.
 
-        For ``GasKinetics``, the following keyword/value pairs are supported:
+        For :ct:`BulkKinetics`, the following keyword/value pairs are supported:
 
         -  ``skip-third-bodies`` (boolean) ... if `False` (default), third body
            concentrations are considered for the evaluation of derivatives

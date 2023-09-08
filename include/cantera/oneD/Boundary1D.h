@@ -45,7 +45,7 @@ public:
         _init(1);
     }
 
-    string type() const override {
+    string domainType() const override {
         return "boundary";
     }
 
@@ -142,7 +142,7 @@ public:
 
     Inlet1D(shared_ptr<Solution> solution, const string& id="");
 
-    string type() const override {
+    string domainType() const override {
         return "inlet";
     }
 
@@ -183,16 +183,14 @@ protected:
 class Empty1D : public Boundary1D
 {
 public:
-    Empty1D() {
-        m_type = cEmptyType;
-    }
+    Empty1D() = default;
 
     Empty1D(shared_ptr<Solution> solution, const string& id="") : Empty1D() {
         m_solution = solution;
         m_id = id;
     }
 
-    string type() const override {
+    string domainType() const override {
         return "empty";
     }
 
@@ -212,16 +210,14 @@ public:
 class Symm1D : public Boundary1D
 {
 public:
-    Symm1D() {
-        m_type = cSymmType;
-    }
+    Symm1D() = default;
 
     Symm1D(shared_ptr<Solution> solution, const string& id="") : Symm1D() {
         m_solution = solution;
         m_id = id;
     }
 
-    string type() const override {
+    string domainType() const override {
         return "symmetry-plane";
     }
 
@@ -240,16 +236,14 @@ public:
 class Outlet1D : public Boundary1D
 {
 public:
-    Outlet1D() {
-        m_type = cOutletType;
-    }
+    Outlet1D() = default;
 
     Outlet1D(shared_ptr<Solution> solution, const string& id="") : Outlet1D() {
         m_solution = solution;
         m_id = id;
     }
 
-    string type() const override {
+    string domainType() const override {
         return "outlet";
     }
 
@@ -272,7 +266,7 @@ public:
 
     OutletRes1D(shared_ptr<Solution> solution, const string& id="");
 
-    string type() const override {
+    string domainType() const override {
         return "outlet-reservoir";
     }
 
@@ -308,16 +302,14 @@ protected:
 class Surf1D : public Boundary1D
 {
 public:
-    Surf1D() {
-        m_type = cSurfType;
-    }
+    Surf1D() = default;
 
     Surf1D(shared_ptr<Solution> solution, const string& id="") : Surf1D() {
         m_solution = solution;
         m_id = id;
     }
 
-    string type() const override {
+    string domainType() const override {
         return "surface";
     }
 
@@ -342,14 +334,11 @@ public:
     ReactingSurf1D();
     ReactingSurf1D(shared_ptr<Solution> solution, const string& id="");
 
-    string type() const override {
+    string domainType() const override {
         return "reacting-surface";
     }
 
     void setKinetics(shared_ptr<Kinetics> kin) override;
-
-    //! @deprecated To be removed after %Cantera 3.0; replaced by setKinetics()
-    void setKineticsMgr(InterfaceKinetics* kin);
 
     void enableCoverageEquations(bool docov) {
         m_enabled = docov;
@@ -382,7 +371,6 @@ public:
 protected:
     InterfaceKinetics* m_kin = nullptr;
     SurfPhase* m_sphase = nullptr;
-    size_t m_surfindex = 0;
     size_t m_nsp = 0;
     bool m_enabled = false;
     vector<double> m_work;

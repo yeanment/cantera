@@ -26,10 +26,7 @@ class MultiTransport : public GasTransport
 {
 public:
     //! default constructor
-    /*!
-     * @param thermo  Optional parameter for the pointer to the ThermoPhase object
-     */
-    MultiTransport(ThermoPhase* thermo=0);
+    MultiTransport() = default;
 
     string transportModel() const override {
         return (m_mode == CK_Mode) ? "multicomponent-CK" : "multicomponent";
@@ -149,8 +146,6 @@ protected:
 
     //! Mole fraction vector from last L-matrix evaluation
     vector<double> m_molefracs_last;
-
-    void correctBinDiffCoeffs();
 
     //! Boolean indicating viscosity is up to date
     bool m_l0000_ok;

@@ -696,8 +696,7 @@ extern "C" {
                     }
                 }
             }
-            auto kin = newKinetics(phases, f2string(filename, nlen),
-                                   f2string(phasename, plen));
+            auto kin = newKinetics(phases, f2string(filename, nlen));
             return KineticsCabinet::add(kin);
         } catch (...) {
             return handleAllExceptions(999, ERR);
@@ -727,8 +726,7 @@ extern "C" {
                               ftnlen lennm, ftnlen lenph)
     {
         try {
-            return _fkin(n)->kineticsSpeciesIndex(f2string(nm, lennm),
-                                                  f2string(ph, lenph)) + 1;
+            return _fkin(n)->kineticsSpeciesIndex(f2string(nm, lennm)) + 1;
         } catch (...) {
             return handleAllExceptions(-1, ERR);
         }
@@ -1049,16 +1047,6 @@ extern "C" {
     {
         try {
             _ftrans(n)->getMultiDiffCoeffs(*ld,d);
-            return 0;
-        } catch (...) {
-            return handleAllExceptions(-1, ERR);
-        }
-    }
-
-    status_t trans_setparameters_(const integer* n, integer* type, integer* k, double* d)
-    {
-        try {
-            _ftrans(n)->setParameters(*type, *k, d);
             return 0;
         } catch (...) {
             return handleAllExceptions(-1, ERR);

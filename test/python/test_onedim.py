@@ -3,7 +3,7 @@ from . import utilities
 import numpy as np
 from .utilities import allow_deprecated
 import pytest
-
+from pytest import approx
 
 class TestOnedim(utilities.CanteraTest):
     def test_instantiate(self):
@@ -78,14 +78,12 @@ class TestOnedim(utilities.CanteraTest):
         with pytest.raises(TypeError, match="Argument 'phase' has incorrect type"):
             ct.Inlet1D(None)
         gas = ct.Solution("h2o2.yaml")
-        with pytest.warns(DeprecationWarning, match="should reference surface"):
+        with pytest.raises(ct.CanteraError, match="incompatible ThermoPhase type"):
             ct.ReactingSurface1D(gas)
-        with pytest.raises(TypeError, match="unexpected keyword"):
-            ct.ReactingSurface1D(gas, foo="bar")
         interface = ct.Solution("diamond.yaml", "diamond_100")
+        with pytest.raises(TypeError, match="unexpected keyword"):
+            ct.ReactingSurface1D(interface, foo="bar")
         surf = ct.ReactingSurface1D(interface)
-        with pytest.warns(DeprecationWarning, match="Method to be removed"):
-            surf.set_kinetics(interface)
 
     def test_invalid_property(self):
         gas1 = ct.Solution("h2o2.yaml")
@@ -293,8 +291,6 @@ class TestFreeFlame(utilities.CanteraTest):
         flow = self.sim.to_array(normalize=True)
         self.assertArrayNear(self.sim.grid, flow.grid)
         self.assertArrayNear(self.sim.T, flow.T)
-        for k in flow.extra:
-            self.assertIn(k, self.sim._other)
 
         f2 = ct.FreeFlame(self.gas)
         f2.from_array(flow)
@@ -349,75 +345,42 @@ class TestFreeFlame(utilities.CanteraTest):
         for rhou_j in self.sim.density * self.sim.velocity:
             self.assertNear(rhou_j, rhou, 1e-4)
 
-    @pytest.mark.filterwarnings("ignore:.*_FlowBase.settings.*Cantera 3.0.*:DeprecationWarning")
-    @pytest.mark.filterwarnings("ignore:.*FlameBase.settings.*Cantera 3.0.*:DeprecationWarning")
     def test_settings(self):
         self.create_sim(p=ct.one_atm, Tin=400, reactants='H2:0.8, O2:0.5', width=0.1)
         self.sim.set_initial_guess()
         sim = self.sim
-
-        # FlowBase specific settings (legacy implementation)
-        flame_settings = sim.flame.settings
-        keys = ['Domain1D_type',
-                'emissivity_left', 'emissivity_right',
-                'steady_abstol', 'steady_reltol',
-                'transient_abstol', 'transient_reltol']
-        for k in keys:
-            self.assertIn(k, flame_settings)
 
         # new implementation
         new_keys = {
             "type", "points", "tolerances", "transport-model", "phase",
             "radiation-enabled", "energy-enabled", "Soret-enabled", "species-enabled",
             "refine-criteria", "fixed-point"}
-        new_settings = sim.flame.get_settings3()
+        settings = sim.flame.settings
         for k in new_keys:
-            assert k in new_settings
+            assert k in settings
 
-        changed = {'emissivity_left': .12,
-                   'emissivity_right': .21,
-                   'steady_abstol': 2.53e-9,
-                   'steady_reltol_H2': 1.3e-8}
-        flame_settings.update(changed)
+        assert settings["radiation-enabled"] == False
 
-        sim.flame.settings = flame_settings
-        changed_settings = sim.flame.settings
-        for key, val in changed.items():
-            self.assertEqual(changed_settings[key], val)
+        # Apply settings using individual setters
+        sim.flame.boundary_emissivities = 0.12, 0.34
+        sim.flame.radiation_enabled = True
+        sim.flame.set_steady_tolerances(default=(3e-4, 7e-9))
+        sim.transport_model = 'unity-Lewis-number'
 
-        # new implementation
-        tolerances = sim.flame.get_settings3()["tolerances"]
-        assert tolerances["steady-abstol"] == pytest.approx(2.53e-9)
-        assert tolerances["steady-reltol"]["H2"] == pytest.approx(1.3e-8)
+        # Check that the aggregated settings reflect the changes
+        new_settings = sim.flame.settings
 
-        # Sim1D specific settings (legacy implementation)
-        settings = sim.settings
-
-        keys = ['Sim1D_type', 'transport_model',
-                'energy_enabled', 'soret_enabled', 'radiation_enabled',
-                'fixed_temperature',
-                'ratio', 'slope', 'curve', 'prune',
-                'max_time_step_count', 'max_grid_points']
-        for k in keys:
-            self.assertIn(k, settings)
-
-        changed2 = {'fixed_temperature': 900,
-                    'max_time_step_count': 100,
-                    'energy_enabled': False,
-                    'radiation_enabled': True,
-                    'transport_model': 'multicomponent'}
-        settings.update(changed2)
-
-        sim.settings = settings
-        for key, val in changed2.items():
-            self.assertEqual(getattr(sim, key), val)
-
-        # new implementation
-        new_settings = sim.flame.get_settings3()
-        assert new_settings["energy-enabled"] == False
         assert new_settings["radiation-enabled"] == True
-        assert new_settings["emissivity-left"] == changed["emissivity_left"]
-        assert new_settings["emissivity-right"] == changed["emissivity_right"]
+        assert new_settings["emissivity-left"] == 0.12
+        assert new_settings["emissivity-right"] == 0.34
+        assert new_settings["transport-model"] == "unity-Lewis-number"
+
+        tolerances = new_settings["tolerances"]
+        assert tolerances["steady-reltol"] == approx(3e-4)
+        assert tolerances["steady-abstol"] == approx(7e-9)
+
+        assert "fixed-point" in new_settings
+        assert "location" in new_settings["fixed-point"]
 
     def test_mixture_averaged_case1(self):
         self.run_mix(phi=0.65, T=300, width=0.03, p=1.0, refine=True)
@@ -664,6 +627,7 @@ class TestFreeFlame(utilities.CanteraTest):
 
         self.sim.solve(loglevel=0)
 
+    @pytest.mark.filterwarnings("ignore:.*reaction_phase_index.*:DeprecationWarning")
     def test_array_properties(self):
         self.create_sim(ct.one_atm, 300, 'H2:1.1, O2:1, AR:5')
         grid_shape = self.sim.grid.shape
@@ -672,8 +636,8 @@ class TestFreeFlame(utilities.CanteraTest):
             # Skipped because they are constant, irrelevant, or otherwise not desired
             "P", "Te", "atomic_weights", "charges", "electric_potential", "max_temp",
             "min_temp", "molecular_weights", "product_stoich_coeffs",
-            "product_stoich_coeffs3", "product_stoich_coeffs_reversible",
-            "reactant_stoich_coeffs", "reactant_stoich_coeffs3", "reference_pressure",
+            "product_stoich_coeffs", "product_stoich_coeffs_reversible",
+            "reactant_stoich_coeffs", "reactant_stoich_coeffs", "reference_pressure",
             "state", "u", "v",
             # Skipped because they are 2D (conversion not implemented)
             "binary_diff_coeffs", "creation_rates_ddX", "destruction_rates_ddX",
@@ -764,22 +728,6 @@ class TestFreeFlame(utilities.CanteraTest):
             k1 = gas1.species_index(species)
             self.assertArrayNear(Y1[k1], Y2[k2])
 
-    @pytest.mark.usefixtures("allow_deprecated")
-    def test_write_csv_legacy(self):
-        filename = self.test_work_path / "onedim-write_csv.csv"
-        # In Python >= 3.8, this can be replaced by the missing_ok argument
-        if filename.is_file():
-            filename.unlink()
-
-        self.create_sim(2e5, 350, 'H2:1.0, O2:2.0', mech="h2o2.yaml")
-        self.sim.write_csv(filename)
-        data = ct.SolutionArray(self.gas)
-        data.read_csv(filename)
-        self.assertArrayNear(data.grid, self.sim.grid)
-        self.assertArrayNear(data.T, self.sim.T)
-        k = self.gas.species_index('H2')
-        self.assertArrayNear(data.X[:, k], self.sim.X[k, :])
-
     def test_write_csv(self):
         filename = self.test_work_path / "onedim-save.csv"
         filename.unlink(missing_ok=True)
@@ -794,19 +742,10 @@ class TestFreeFlame(utilities.CanteraTest):
         self.assertArrayNear(data.X[:, k], self.sim.X[k, :])
 
     @pytest.mark.usefixtures("allow_deprecated")
-    @utilities.unittest.skipIf("h5py" not in ct.hdf_support(), "h5py not installed")
-    def test_restore_legacy_hdf_h5py(self):
-        self.run_restore_legacy_hdf(True)
-
-    @pytest.mark.usefixtures("allow_deprecated")
     @pytest.mark.filterwarnings("ignore:.*legacy HDF.*:UserWarning")
     @pytest.mark.skipif("native" not in ct.hdf_support(),
                         reason="Cantera compiled without HDF support")
     def test_restore_legacy_hdf(self):
-        self.run_restore_legacy_hdf()
-
-    @pytest.mark.usefixtures("allow_deprecated")
-    def run_restore_legacy_hdf(self, legacy=False):
         # Legacy input file was created using the Cantera 2.6 Python test suite:
         # - restore_legacy.h5 -> test_onedim.py::TestFreeFlame::test_write_hdf
         filename = self.test_data_path / f"freeflame_legacy.h5"
@@ -815,10 +754,7 @@ class TestFreeFlame(utilities.CanteraTest):
         desc = 'mixture-averaged simulation'
 
         f = ct.FreeFlame(self.gas)
-        if legacy:
-            meta = f.read_hdf(filename)
-        else:
-            meta = f.restore(filename, "group0")
+        meta = f.restore(filename, "group0")
         assert meta['description'] == desc
         assert meta['cantera_version'] == "2.6.0"
 
@@ -827,12 +763,10 @@ class TestFreeFlame(utilities.CanteraTest):
 
     @pytest.mark.skipif("native" not in ct.hdf_support(),
                         reason="Cantera compiled without HDF support")
-    @pytest.mark.filterwarnings("ignore:.*_FlowBase.settings.*Cantera 3.0.*:DeprecationWarning")
     def test_save_restore_hdf(self):
         # save and restore with native format (HighFive only)
         self.run_save_restore("h5")
 
-    @pytest.mark.filterwarnings("ignore:.*_FlowBase.settings.*Cantera 3.0.*:DeprecationWarning")
     def test_save_restore_yaml(self):
         self.run_save_restore("yaml")
 
@@ -847,33 +781,6 @@ class TestFreeFlame(utilities.CanteraTest):
         f = ct.FreeFlame(self.gas)
         meta = f.restore(filename, "group0")
         assert meta['description'] == desc
-        assert meta['cantera-version'] == ct.__version__
-        assert meta['git-commit'] == f"'{ct.__git_commit__}'"
-
-        self.check_save_restore(f)
-
-    @pytest.mark.usefixtures("allow_deprecated")
-    @pytest.mark.skipif(ct.hdf_support() != {"native", "h5py"},
-                        reason="Both HDF support modes needed")
-    def test_deprecated_write_read_hdf(self):
-        filename = self.test_work_path / f"freeflame_deprecated.h5"
-        filename.unlink(missing_ok=True)
-
-        self.run_mix(phi=1.1, T=350, width=2.0, p=2.0, refine=False)
-        desc = 'mixture-averaged simulation'
-        with pytest.warns(DeprecationWarning, match="use 'save' instead"):
-            self.sim.write_hdf(filename, group="group0", description=desc, loglevel=0)
-
-        f = ct.FreeFlame(self.gas)
-        with pytest.raises(IOError, match="use 'restore' instead"):
-            # New HDF format should not be read with 'read_hdf'
-            with pytest.warns(DeprecationWarning, match="use 'restore' instead"):
-                # DeprecationWarning is triggered before IOError is raised
-                f.read_hdf(filename, group="group0")
-
-        meta = f.restore(filename, "group0")
-        assert meta['description'] == desc
-        assert meta['generator'] == "Cantera SolutionArray"
         assert meta['cantera-version'] == ct.__version__
         assert meta['git-commit'] == f"'{ct.__git_commit__}'"
 
@@ -903,7 +810,6 @@ class TestFreeFlame(utilities.CanteraTest):
                     assert two[k] == v
 
         check_settings(self.sim.flame.settings, f.flame.settings)
-        check_settings(self.sim.flame.get_settings3(), f.flame.get_settings3())
 
         f.solve(loglevel=0)
 
@@ -1282,6 +1188,7 @@ class TestCounterflowPremixedFlame(utilities.CanteraTest):
         sim.solve(loglevel=0, auto=True)
         self.assertTrue(all(sim.T >= T - 1e-3))
         self.assertTrue(all(sim.spread_rate >= -1e-9))
+        assert np.allclose(sim.L, sim.L[0])
         return sim
 
     @utilities.slow_test
@@ -1391,6 +1298,7 @@ class TestCounterflowPremixedFlameNonIdeal(utilities.CanteraTest):
         sim.solve(loglevel=0, auto=True)
         self.assertTrue(all(sim.T >= T - 1e-3))
         self.assertTrue(all(sim.spread_rate >= -1e-9))
+        assert np.allclose(sim.L, sim.L[0])
         return sim
 
     @utilities.slow_test
@@ -1436,6 +1344,7 @@ class TestBurnerFlame(utilities.CanteraTest):
         sim.burner.mdot = gas.density * 0.15
         sim.solve(loglevel=0, auto=True)
         self.assertGreater(sim.T[1], T)
+        assert np.allclose(sim.L, 0)
 
     def test_case1(self):
         self.solve(phi=0.5, T=500, width=2.0, P=0.1)
@@ -1530,6 +1439,7 @@ class TestStagnationFlame(utilities.CanteraTest):
         sim.solve(loglevel=0, auto=True)
 
         assert sim.T.max() > tburner + tsurf
+        assert np.allclose(sim.L, sim.L[0])
         self.sim = sim
 
     def test_stagnation_case1(self):
@@ -1563,8 +1473,8 @@ class TestStagnationFlame(utilities.CanteraTest):
         k = self.sim.gas.species_index('H2')
         assert list(jet.X[k, :]) == pytest.approx(list(self.sim.X[k, :]), 1e-4)
 
-        settings = self.sim.flame.get_settings3()
-        for k, v in jet.flame.get_settings3().items():
+        settings = self.sim.flame.settings
+        for k, v in jet.flame.settings.items():
             assert k in settings
             if k == "fixed_temperature":
                 # fixed temperature is NaN
@@ -1629,16 +1539,6 @@ class TestImpingingJet(utilities.CanteraTest):
         self.run_reacting_surface(xch4=0.2, tsurf=800.0, mdot=0.1, width=0.2)
 
     @pytest.mark.usefixtures("allow_deprecated")
-    @utilities.unittest.skipIf("h5py" not in ct.hdf_support(), "h5py not installed")
-    def test_restore_legacy_hdf_h5py(self):
-        filename = self.test_data_path / f"impingingjet_legacy.h5"
-        jet = ct.ImpingingJet(gas=self.gas, surface=self.surf_phase)
-        with pytest.raises(IOError, match="Unable to load surface phase"):
-            # legacy HDF format uses TDX state information, which is incomplete for
-            # surfaces
-            jet.read_hdf(filename)
-
-    @pytest.mark.usefixtures("allow_deprecated")
     @pytest.mark.skipif("native" not in ct.hdf_support(),
                         reason="Cantera compiled without HDF support")
     @pytest.mark.filterwarnings("ignore:.*legacy HDF.*:UserWarning")
@@ -1681,8 +1581,8 @@ class TestImpingingJet(utilities.CanteraTest):
         k = self.sim.gas.species_index('H2')
         assert list(jet.X[k, :]) == pytest.approx(list(self.sim.X[k, :]), 1e-4)
 
-        settings = self.sim.flame.get_settings3()
-        for k, v in jet.flame.get_settings3().items():
+        settings = self.sim.flame.settings
+        for k, v in jet.flame.settings.items():
             assert k in settings
             if k == "fixed_temperature":
                 # fixed temperature is NaN
@@ -1717,6 +1617,7 @@ class TestTwinFlame(utilities.CanteraTest):
         sim.reactants.mdot = gas.density * axial_velocity
         sim.solve(loglevel=0, auto=True)
         self.assertGreater(sim.T[-1], T + 100)
+        assert np.allclose(sim.L, sim.L[0])
         return sim
 
     def test_restart(self):

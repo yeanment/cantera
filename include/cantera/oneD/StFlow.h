@@ -68,7 +68,7 @@ public:
 
     ~StFlow();
 
-    string type() const override;
+    string domainType() const override;
 
     //! @name Problem Specification
     //! @{
@@ -85,26 +85,9 @@ public:
         return *m_kin;
     }
 
-    /**
-     * Set the thermo manager.
-     *
-     * @deprecated To be removed after %Cantera 3.0 (unused)
-     */
-    void setThermo(ThermoPhase& th);
-
     void setKinetics(shared_ptr<Kinetics> kin) override;
 
-    //! Set the kinetics manager.
-    //! @deprecated To be removed after %Cantera 3.0;
-    //!     replaced by Domain1D::setKinetics()
-    void setKinetics(Kinetics& kin);
-
     void setTransport(shared_ptr<Transport> trans) override;
-
-    //! Set transport model to existing instance
-    //! @deprecated To be removed after %Cantera 3.0;
-    //!     replaced by Domain1D::setKinetics()
-    void setTransport(Transport& trans);
 
     //! Set the transport model
     //! @since New in %Cantera 3.0.
@@ -208,7 +191,6 @@ public:
     //! Set flow configuration for freely-propagating flames, using an internal point
     //! with a fixed temperature as the condition to determine the inlet mass flux.
     void setFreeFlow() {
-        m_type = cFreeFlow;
         m_dovisc = false;
         m_isFree = true;
         m_usesLambda = false;
@@ -217,7 +199,6 @@ public:
     //! Set flow configuration for axisymmetric counterflow flames, using specified
     //! inlet mass fluxes.
     void setAxisymmetricFlow() {
-        m_type = cAxisymmetricStagnationFlow;
         m_dovisc = true;
         m_isFree = false;
         m_usesLambda = true;
@@ -226,17 +207,10 @@ public:
     //! Set flow configuration for burner-stabilized flames, using specified inlet mass
     //! fluxes.
     void setUnstrainedFlow() {
-        m_type = cAxisymmetricStagnationFlow;
         m_dovisc = false;
         m_isFree = false;
         m_usesLambda = false;
     }
-
-    //! Return the type of flow domain being represented, either "Free Flame" or
-    //! "Axisymmetric Stagnation".
-    //! @see setFreeFlow setAxisymmetricFlow
-    //! @deprecated To be removed after %Cantera 3.0; replaced by type().
-    virtual string flowType() const;
 
     void solveEnergyEqn(size_t j=npos);
 
@@ -320,9 +294,6 @@ public:
     double density(size_t j) const {
         return m_rho[j];
     }
-
-    //! @deprecated To be removed after %Cantera 3.0. Superseded by isFree()
-    virtual bool fixed_mdot();
 
     /**
      * Retrieve flag indicating whether flow is freely propagating.

@@ -108,16 +108,12 @@ valid_commands = ("build", "clean", "install", "uninstall",
 if GetOption("silent"):
     logger.logger.setLevel("ERROR")
 else:
-    logger.logger.setLevel("WARNING")
+    logger.logger.setLevel("INFO")
 
 for command in COMMAND_LINE_TARGETS:
     if command not in valid_commands and not command.startswith('test'):
         logger.error(f"Unrecognized command line target: {command!r}")
         sys.exit(1)
-
-    # update default logging level
-    if command in ["build", "dump"] and not GetOption("silent"):
-        logger.logger.setLevel("INFO")
 
 if "clean" in COMMAND_LINE_TARGETS:
     remove_directory("build")
@@ -478,7 +474,7 @@ config_options = [
     BoolOption(
         "use_pch",
         "Use a precompiled-header to speed up compilation",
-        {"icc": False, "default": True}),
+        True),
     Option(
         "pch_flags",
         "Compiler flags when using precompiled-header.",
@@ -504,7 +500,6 @@ config_options = [
         "Additional compiler flags passed to the C/C++ compiler when 'optimize=yes'.",
         {
             "cl": "/O2",
-            "icc": "-O3 -fp-model precise",
             "icx": "-O3 -fp-model precise", # cannot assume finite math
             "gcc": "-O3 -Wno-inline",
             "default": "-O3",
@@ -570,12 +565,6 @@ config_options = [
            to 'stage_dir/prefix/...'.""",
         "",
         PathVariable.PathAccept),
-    BoolOption(
-        "VERBOSE",
-        """Create verbose output about what SCons is doing. Deprecated in Cantera 3.0
-           and to be removed thereafter; replaceable by 'logging=debug'.
-           """,
-        False),
     EnumOption(
         "logging",
         """Select logging level for SCons output. By default, logging messages use
@@ -615,7 +604,6 @@ config_options = [
            scripts).""",
         {
             "cl": "/openmp",
-            "icc": "-qopenmp",
             "icx": "-qopenmp",
             "apple-clang": "-Xpreprocessor -fopenmp",
             "default": "-fopenmp",
@@ -869,10 +857,7 @@ elif env["CC"] == "cl": # Visual Studio
     config.select("cl")
 
 elif "icc" in env.subst("$CC"):
-    logger.warning("Support for the deprecated Intel compiler suite (icc/icpc) "
-                   "will be removed after Cantera 3.0.\nConsider using the new "
-                   "LLVM-based Intel oneAPI compilers (icx/icpx) instead.")
-    config.select("icc")
+    logger.error("The deprecated Intel compiler suite (icc/icpc) is no longer supported")
 
 elif "icx" in env.subst("$CC"):
     config.select("icx")
@@ -950,7 +935,7 @@ for arg in ARGUMENTS:
         logger.error(f"Encountered unexpected command line option: {arg!r}")
         sys.exit(1)
 
-env["cantera_version"] = "3.0.0b1"
+env["cantera_version"] = "3.1.0a1"
 # For use where pre-release tags are not permitted (MSI, sonames)
 env['cantera_pure_version'] = re.match(r'(\d+\.\d+\.\d+)', env['cantera_version']).group(0)
 env['cantera_short_version'] = re.match(r'(\d+\.\d+)', env['cantera_version']).group(0)
@@ -995,11 +980,6 @@ logger.info(textwrap.indent(cantera_conf, "    "), print_level=False)
 loglevel = env["logging"]
 if loglevel != "default":
     logger.logger.setLevel(loglevel.upper())
-
-if env["VERBOSE"]:
-    # @todo: Remove after Cantera 3.0
-    logger.warning("Option 'VERBOSE' is deprecated: replaceable by 'logging=debug'")
-    logger.logger.setLevel("DEBUG")
 
 # Copy in external environment variables
 if env['env_vars'] == 'all':
@@ -1585,15 +1565,16 @@ if env["use_hdf5"] and env["system_highfive"] in ("y", "default"):
                         f"System HighFive version {h5_lib_version} is not "
                         "supported; version 2.5 or higher is required.")
                 logger.info(
-                    f"System HighFive version {h5_lib_version} is not supported.")
+                    f"System HighFive version {h5_lib_version} is not supported. "
+                    "Using private installation instead.")
             else:
                 env["system_highfive"] = True
+                logger.info("Using system installation of HighFive library.")
             env["HIGHFIVE_VERSION"] = h5_lib_version.strip()
         else:
             config_error("Detected invalid HighFive configuration.")
 
         highfive_include = "<highfive/H5DataType.hpp>"
-        logger.info("Using system installation of HighFive library.")
 
     elif env["system_highfive"] == "y":
         config_error(
@@ -1621,7 +1602,7 @@ if env["use_hdf5"] and env["system_highfive"] in ("n", "default"):
         h5_version = Path(cmake_lists).read_text()
         h5_version = [line for line in h5_version.split("\n")
                       if line.startswith("project(HighFive")]
-        return re.search('[0-9]+\.[0-9]+\.[0-9]+', h5_version[0]).group(0)
+        return re.search(r'[0-9]+\.[0-9]+\.[0-9]+', h5_version[0]).group(0)
 
     env["HIGHFIVE_VERSION"] = highfive_version("ext/HighFive/CMakeLists.txt")
     highfive_include = '"../ext/HighFive/include/highfive/H5DataType.hpp"'
@@ -2050,7 +2031,7 @@ if conda_prefix is not None and sys.executable.startswith(str(conda_prefix)):
             env["prefix"] = conda_prefix.resolve().as_posix()
         logger.info(
             f"Using conda environment as default 'prefix': {env['prefix']}")
-elif env["layout"] == "conda":
+elif env["layout"] == "conda" and not env["package_build"]:
     logger.error("Layout option 'conda' requires a conda environment.")
     sys.exit(1)
 

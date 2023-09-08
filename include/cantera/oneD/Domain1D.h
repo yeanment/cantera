@@ -11,19 +11,6 @@
 namespace Cantera
 {
 
-// domain types (deprecated); to be removed after Cantera 3.0
-const int cFlowType = 50;
-const int cFreeFlow = 51;
-const int cAxisymmetricStagnationFlow = 52;
-const int cConnectorType = 100;
-const int cSurfType = 102;
-const int cInletType = 104;
-const int cSymmType = 105;
-const int cOutletType = 106;
-const int cEmptyType = 107;
-const int cOutletResType = 108;
-const int cPorousType = 109;
-
 class MultiJac;
 class OneDim;
 class Refiner;
@@ -53,15 +40,13 @@ public:
     Domain1D& operator=(const Domain1D&) = delete;
 
     //! Domain type flag.
-    //! @deprecated To be changed after %Cantera 3.0; for new behavior, see type.
-    int domainType();
+    //! @since Starting in %Cantera 3.1, the return type is a `string`.
+    virtual string domainType() const { return "domain"; }
 
     //! String indicating the domain implemented.
     //! @since New in %Cantera 3.0.
-    //! @todo Transition back to domainType after %Cantera 3.0
-    virtual string type() const {
-        return "domain";
-    }
+    //! @deprecated Transitional method. Use domainType() instead.
+    string type() const { return domainType(); }
 
     //! The left-to-right location of this domain.
     size_t domainIndex() {
@@ -335,14 +320,6 @@ public:
 
     virtual void setJac(MultiJac* jac) {}
 
-    //! Save the state of this domain as an AnyMap
-    /*!
-     * @param soln local solution vector for this domain
-     *
-     * @deprecated To be removed after %Cantera 3.0; superseded by asArray().
-     */
-    AnyMap serialize(const double* soln) const;
-
     //! Save the state of this domain as a SolutionArray.
     /*!
      * @param soln local solution vector for this domain
@@ -364,17 +341,6 @@ public:
      * @since New in %Cantera 3.0.
      */
     shared_ptr<SolutionArray> toArray(bool normalize=false) const;
-
-    //! Restore the solution for this domain from an AnyMap
-    /*!
-     * @param[in]  state AnyMap defining the state of this domain
-     * @param[out] soln Value of the solution vector, local to this domain
-     * @param[in]  loglevel 0 to suppress all output; 1 to show warnings; 2 for
-     *      verbose output
-     *
-     * @deprecated To be removed after %Cantera 3.0; restore from SolutionArray instead.
-     */
-    void restore(const AnyMap& state, double* soln, int loglevel);
 
     //! Restore the solution for this domain from a SolutionArray
     /*!
@@ -489,13 +455,6 @@ public:
         }
     }
 
-    //! @deprecated To be removed after %Cantera 3.0; replaced by show()
-    virtual void showSolution_s(std::ostream& s, const double* x);
-
-    //! Print the solution.
-    //! @deprecated To be removed after %Cantera 3.0; replaced by show()
-    virtual void showSolution(const double* x);
-
     //! Print the solution.
     virtual void show(std::ostream& s, const double* x) {}
 
@@ -584,7 +543,6 @@ protected:
     vector<double> m_z;
     OneDim* m_container = nullptr;
     size_t m_index;
-    int m_type = 0; //!< @deprecated To be removed after %Cantera 3.0
 
     //! Starting location within the solution vector for unknowns that
     //! correspond to this domain

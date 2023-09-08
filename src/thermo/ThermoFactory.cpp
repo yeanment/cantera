@@ -18,10 +18,8 @@
 #include "cantera/thermo/PlasmaPhase.h"
 
 #include "cantera/thermo/IdealSolidSolnPhase.h"
-#include "cantera/thermo/MaskellSolidSolnPhase.h"
 #include "cantera/thermo/MargulesVPSSTP.h"
 #include "cantera/thermo/RedlichKisterVPSSTP.h"
-#include "cantera/thermo/IonsFromNeutralVPSSTP.h"
 #include "cantera/thermo/PureFluidPhase.h"
 #include "cantera/thermo/RedlichKwongMFTP.h"
 #include "cantera/thermo/PengRobinson.h"
@@ -89,17 +87,11 @@ ThermoFactory::ThermoFactory()
     addDeprecatedAlias("ideal-solution-VPSS", "IdealSolnGas");
     addDeprecatedAlias("ideal-gas-VPSS", "IdealGasVPSS");
     reg("Margules", []() { return new MargulesVPSSTP(); });
-    reg("ions-from-neutral-molecule", []() { return new IonsFromNeutralVPSSTP(); });
-    addAlias("ions-from-neutral-molecule", "IonsFromNeutralMolecule");
-    addAlias("ions-from-neutral-molecule", "IonsFromNeutral");
     reg("Redlich-Kister", []() { return new RedlichKisterVPSSTP(); });
     addDeprecatedAlias("Redlich-Kister", "RedlichKister");
     reg("Redlich-Kwong", []() { return new RedlichKwongMFTP(); });
     addDeprecatedAlias("Redlich-Kwong", "RedlichKwongMFTP");
     addDeprecatedAlias("Redlich-Kwong", "RedlichKwong");
-    reg("Maskell-solid-solution", []() { return new MaskellSolidSolnPhase(); });
-    addAlias("Maskell-solid-solution", "MaskellSolidSolnPhase");
-    addAlias("Maskell-solid-solution", "MaskellSolidsoln");
     reg("liquid-water-IAPWS95", []() { return new WaterSSTP(); });
     addDeprecatedAlias("liquid-water-IAPWS95", "PureLiquidWater");
     addDeprecatedAlias("liquid-water-IAPWS95", "Water");
@@ -124,20 +116,6 @@ void ThermoFactory::deleteFactory()
     s_factory = 0;
 }
 
-ThermoPhase* ThermoFactory::newThermoPhase(const string& model)
-{
-    warn_deprecated("newThermoPhase",
-        "To be removed after Cantera 3.0; superseded by newThermoModel.");
-    return create(model);
-}
-
-ThermoPhase* newThermoPhase(const string& model)
-{
-    warn_deprecated("newThermoPhase",
-        "To be removed after Cantera 3.0; superseded by newThermo.");
-    return ThermoFactory::factory()->create(model);
-}
-
 shared_ptr<ThermoPhase> newThermoModel(const string& model)
 {
     shared_ptr<ThermoPhase> tptr(ThermoFactory::factory()->create(model));
@@ -160,12 +138,6 @@ shared_ptr<ThermoPhase> newThermo(const AnyMap& phaseNode, const AnyMap& rootNod
 shared_ptr<ThermoPhase> newThermo(const string& infile, const string& id)
 {
     size_t dot = infile.find_last_of(".");
-    if (dot == npos) {
-        // @todo Remove after Cantera 3.0
-        warn_deprecated("newThermo",
-            "Changed in Cantera 3.0. Replaced by newThermoModel.\n");
-        newThermoModel(infile);
-    }
     string extension;
     extension = toLowerCopy(infile.substr(dot+1));
     string id_ = id;
@@ -180,29 +152,6 @@ shared_ptr<ThermoPhase> newThermo(const string& infile, const string& id)
     AnyMap root = AnyMap::fromYamlFile(infile);
     AnyMap& phase = root["phases"].getMapWhere("name", id_);
     return newThermo(phase, root);
-}
-
-unique_ptr<ThermoPhase> newPhase(const AnyMap& phaseNode, const AnyMap& rootNode)
-{
-    warn_deprecated("newPhase",
-        "To be removed after Cantera 3.0; superseded by\n"
-        "newThermo(const AnyMap&, const AnyMap&).");
-    if (!phaseNode.hasKey("kinetics") && phaseNode.hasKey("reactions")) {
-        throw InputFileError("newPhase", phaseNode["reactions"],
-            "Phase entry includes a 'reactions' field but does not "
-            "specify a kinetics model.");
-    }
-    unique_ptr<ThermoPhase> t(newThermoPhase(phaseNode["thermo"].asString()));
-    setupPhase(*t, phaseNode, rootNode);
-    return t;
-}
-
-ThermoPhase* newPhase(const string& infile, string id)
-{
-    warn_deprecated("newPhase",
-        "To be removed after Cantera 3.0; superseded by\n"
-        "newThermo(const string&, const string&).");
-    return newThermo(infile, id).get();
 }
 
 void addDefaultElements(ThermoPhase& thermo, const vector<string>& element_names) {
@@ -364,26 +313,28 @@ void setupPhase(ThermoPhase& thermo, const AnyMap& phaseNode, const AnyMap& root
     if (vpssThermo) {
         for (size_t k = 0; k < thermo.nSpecies(); k++) {
             unique_ptr<PDSS> pdss;
-            if (thermo.species(k)->input.hasKey("equation-of-state")) {
-                // Use the first node which specifies a valid PDSS model
-                auto& eos = thermo.species(k)->input["equation-of-state"];
-                bool found = false;
-                for (auto& node : eos.asVector<AnyMap>()) {
-                    string model = node["model"].asString();
-                    if (PDSSFactory::factory()->exists(model)) {
-                        pdss.reset(newPDSS(model));
-                        pdss->setParameters(node);
-                        found = true;
-                        break;
-                    }
+            if (!thermo.species(k)->input.hasKey("equation-of-state")) {
+                throw InputFileError("setupPhase", thermo.species(k)->input,
+                    "Species '{}' in use by a ThermoPhase model of type '{}'\n"
+                    "must define an 'equation-of-state' field.",
+                    thermo.speciesName(k), thermo.type());
+            }
+            // Use the first node which specifies a valid PDSS model
+            auto& eos = thermo.species(k)->input["equation-of-state"];
+            bool found = false;
+            for (auto& node : eos.asVector<AnyMap>()) {
+                string model = node["model"].asString();
+                if (PDSSFactory::factory()->exists(model)) {
+                    pdss.reset(newPDSS(model));
+                    pdss->setParameters(node);
+                    found = true;
+                    break;
                 }
-                if (!found) {
-                    throw InputFileError("setupPhase", eos,
-                        "Could not find an equation-of-state specification "
-                        "which defines a known PDSS model.");
-                }
-            } else {
-                pdss.reset(newPDSS("ideal-gas"));
+            }
+            if (!found) {
+                throw InputFileError("setupPhase", eos,
+                    "Could not find an equation-of-state specification "
+                    "which defines a known PDSS model.");
             }
             vpssThermo->installPDSS(k, std::move(pdss));
         }

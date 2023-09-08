@@ -37,13 +37,143 @@ jobs:
       run: python3 -m pip install -U pip setuptools wheel
     - name: Install Python dependencies
       run: |
-        python3 -m pip install ruamel.yaml scons numpy pandas h5py pytest pint \
+        python3 -m pip install ruamel.yaml scons numpy pandas pytest pint \
           pytest-github-actions-annotate-failures
         python3 -m pip install --pre cython
     - name: Build Cantera
       run: python3 `which scons` build env_vars=all
         CXX=clang++-12 CC=clang-12 f90_interface=n extra_lib_dirs=/usr/lib/llvm/lib
         -j2 debug=n --debug=time hdf_libdir=$HDF5_LIBDIR hdf_include=$HDF5_INCLUDEDIR
+    - name: Test Cantera
+      run:
+        python3 `which scons` test show_long_tests=yes verbose_tests=yes --debug=time
+
+  ubuntu-docker:
+    name: Docker 'ubuntu:${{ matrix.image }}' image
+    strategy:
+      matrix:
+        image: [devel, rolling]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ubuntu:${{ matrix.image }}
+    env:
+      HDF5_LIBDIR: /usr/lib/x86_64-linux-gnu/hdf5/serial
+      HDF5_INCLUDEDIR: /usr/include/hdf5/serial
+    steps:
+    - name: Install git on ubuntu:${{ matrix.image }}
+      run: |
+        apt update -y
+        apt install -y git
+        git config --global init.defaultBranch main
+        git config --global --add safe.directory /__w/cantera/cantera
+    - uses: actions/checkout@v3
+      name: Checkout the repository
+      with:
+        submodules: recursive
+    - name: Install Apt dependencies
+      # Use packages from ubuntu image when possible
+      run: |
+        apt install -y python3 python3-pip pipenv scons build-essential \
+        libboost-dev gfortran libopenmpi-dev libpython3-dev \
+        libblas-dev liblapack-dev libhdf5-dev libfmt-dev libyaml-cpp-dev \
+        libgtest-dev libgmock-dev libeigen3-dev libsundials-dev \
+        cython3 python3-numpy python3-pandas python3-pint \
+        python3-ruamel.yaml python3-setuptools python3-wheel python3-pytest
+        gcc --version
+    - name: Install Python dependencies
+      run: |
+        pipenv install pytest-github-actions-annotate-failures
+    - name: Build Cantera
+      run: |
+        scons build env_vars=all -j2 debug=n --debug=time \
+        hdf_libdir=$HDF5_LIBDIR hdf_include=$HDF5_INCLUDEDIR \
+        system_eigen=y system_fmt=y system_sundials=y system_yamlcpp=y \
+        system_blas_lapack=y hdf_support=y f90_interface=y \
+        cc_flags=-D_GLIBCXX_ASSERTIONS
+    - name: Test Cantera
+      run:
+        scons test verbose_tests=yes --debug=time
+
+  fedora-docker:
+    name: Docker 'fedora:${{ matrix.image }}' image
+    strategy:
+      matrix:
+        image: [rawhide, latest]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: fedora:${{ matrix.image }}
+    steps:
+    - name: Install git on fedora:${{ matrix.image }}
+      run: |
+        dnf install -y git
+        git config --global init.defaultBranch main
+        git config --global --add safe.directory /__w/cantera/cantera
+    - uses: actions/checkout@v3
+      name: Checkout the repository
+    - name: Install dependencies
+      # Use packages from Fedora
+      run: |
+        dnf install -y boost-devel eigen3-devel fmt-devel gcc gcc-c++ \
+        gcc-fortran gmock-devel gtest-devel python3 python3-cython \
+        python3-devel python3-numpy python3-pandas python3-pint python3-pip \
+        python3-pytest python3-ruamel-yaml python3-scipy python3-scons \
+        python3-wheel sundials-devel yaml-cpp-devel hdf5-devel highfive-devel
+    - name: Build Cantera
+      run: |
+        scons build -j2 debug=n --debug=time python_package=full f90_interface=y \
+        extra_inc_dirs=/usr/include/eigen3 libdirname=/usr/lib64 \
+        system_eigen=y system_fmt=y system_blas_lapack=y system_sundials=y \
+        system_yamlcpp=y system_blas_lapack=y hdf_support=y
+      # note: 'system_highfive=y' is omitted as the current packaged version is too old;
+      # once newer version is available in 'latest', this should be tested as well
+    - name: Test Cantera
+      run:
+        scons test verbose_tests=yes --debug=time
+
+  ubuntu-python-prerelease:
+    name: ${{ matrix.os }} with Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        python-version: ['3.12']
+        os: ['ubuntu-20.04', 'ubuntu-22.04']
+      fail-fast: false
+    env:
+      HDF5_LIBDIR: /usr/lib/x86_64-linux-gnu/hdf5/serial
+      HDF5_INCLUDEDIR: /usr/include/hdf5/serial
+    steps:
+    - uses: actions/checkout@v3
+      name: Checkout the repository
+      with:
+        submodules: recursive
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        architecture: x64
+        allow-prereleases: true
+    - name: Install Apt dependencies
+      run: |
+        sudo apt update
+        sudo apt install libboost-dev gfortran libopenmpi-dev \
+        libblas-dev liblapack-dev libhdf5-dev libfmt-dev
+        gcc --version
+    - name: Upgrade pip
+      run: python3 -m pip install -U pip setuptools wheel
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install ruamel.yaml scons numpy cython pandas pytest \
+        pytest-github-actions-annotate-failures pint
+    - name: Build Cantera
+      run: |
+        python3 `which scons` build env_vars=all -j2 debug=n --debug=time \
+        system_fmt=y hdf_libdir=$HDF5_LIBDIR hdf_include=$HDF5_INCLUDEDIR \
+        system_blas_lapack=y hdf_support=y cc_flags=-D_GLIBCXX_ASSERTIONS
     - name: Test Cantera
       run:
         python3 `which scons` test show_long_tests=yes verbose_tests=yes --debug=time

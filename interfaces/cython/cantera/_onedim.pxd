@@ -59,8 +59,7 @@ cdef extern from "cantera/oneD/Boundary1D.h":
         void setSpreadRate(double)
 
     cdef cppclass CxxReactingSurf1D "Cantera::ReactingSurf1D" (CxxBoundary1D):
-        CxxReactingSurf1D() # deprecated in Python API (Cantera 3.0)
-        void setKinetics(shared_ptr[CxxKinetics]) except +translate_exception
+        CxxReactingSurf1D()
         void enableCoverageEquations(cbool) except +translate_exception
         cbool coverageEnabled()
 
@@ -68,7 +67,6 @@ cdef extern from "cantera/oneD/Boundary1D.h":
 cdef extern from "cantera/oneD/StFlow.h":
     cdef cppclass CxxStFlow "Cantera::StFlow" (CxxDomain1D):
         void setTransportModel(const string&) except +translate_exception
-        void setTransport(CxxTransport&) except +translate_exception
         string type()
         string transportModel()
         void setPressure(double)
@@ -102,7 +100,6 @@ cdef extern from "cantera/oneD/StFlow.h":
         cbool withSoret()
         void setFreeFlow()
         void setAxisymmetricFlow()
-        string flowType()
 
 
 cdef extern from "cantera/oneD/Sim1D.h":
@@ -173,7 +170,6 @@ cdef class Boundary1D(Domain1D):
     cdef CxxBoundary1D* boundary
 
 cdef class ReactingSurface1D(Boundary1D):
-    cdef cbool legacy
     cdef CxxReactingSurf1D* surf
     cdef public Kinetics surface
 

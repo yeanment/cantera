@@ -15,7 +15,6 @@ namespace Cantera
 
 Boundary1D::Boundary1D() : Domain1D(1, 1, 0.0)
 {
-    m_type = cConnectorType;
 }
 
 void Boundary1D::_init(size_t n)
@@ -86,7 +85,6 @@ void Boundary1D::fromArray(SolutionArray& arr, double* soln)
 
 Inlet1D::Inlet1D()
 {
-    m_type = cInletType;
 }
 
 Inlet1D::Inlet1D(shared_ptr<Solution> solution, const string& id)
@@ -354,7 +352,6 @@ shared_ptr<SolutionArray> Symm1D::asArray(const double* soln) const
 
 OutletRes1D::OutletRes1D()
 {
-    m_type = cOutletResType;
 }
 
 OutletRes1D::OutletRes1D(shared_ptr<Solution> solution, const string& id)
@@ -583,10 +580,8 @@ void Surf1D::show(const double* x)
 
 ReactingSurf1D::ReactingSurf1D()
     : m_kin(0)
-    , m_surfindex(0)
     , m_nsp(0)
 {
-    m_type = cSurfType;
 }
 
 ReactingSurf1D::ReactingSurf1D(shared_ptr<Solution> solution, const string& id)
@@ -606,8 +601,6 @@ ReactingSurf1D::ReactingSurf1D(shared_ptr<Solution> solution, const string& id)
     m_id = id;
     m_kin = kin.get();
     m_sphase = phase.get();
-
-    m_surfindex = m_kin->reactionPhaseIndex();
     m_nsp = m_sphase->nSpecies();
     m_enabled = true;
 }
@@ -619,19 +612,7 @@ void ReactingSurf1D::setKinetics(shared_ptr<Kinetics> kin)
     m_solution->setKinetics(kin);
     m_solution->setTransportModel("none");
     m_kin = dynamic_pointer_cast<InterfaceKinetics>(kin).get();
-    m_surfindex = kin->reactionPhaseIndex();
     m_sphase = dynamic_pointer_cast<SurfPhase>(kin->reactionPhase()).get();
-    m_nsp = m_sphase->nSpecies();
-    m_enabled = true;
-}
-
-void ReactingSurf1D::setKineticsMgr(InterfaceKinetics* kin)
-{
-    warn_deprecated("ReactingSurf1D::setKineticsMgr",
-        "To be removed after Cantera 3.0. Replaced by Domain1D::setKinetics.");
-    m_kin = kin;
-    m_surfindex = kin->reactionPhaseIndex();
-    m_sphase = (SurfPhase*)&kin->thermo(m_surfindex);
     m_nsp = m_sphase->nSpecies();
     m_enabled = true;
 }
@@ -704,11 +685,10 @@ void ReactingSurf1D::eval(size_t jg, double* xg, double* rg,
 
     m_kin->getNetProductionRates(m_work.data());
     double rs0 = 1.0/m_sphase->siteDensity();
-    size_t ioffset = m_kin->kineticsSpeciesIndex(0, m_surfindex);
 
     if (m_enabled) {
         for (size_t k = 0; k < m_nsp; k++) {
-            r[k] = m_work[k + ioffset] * m_sphase->size(k) * rs0;
+            r[k] = m_work[k] * m_sphase->size(k) * rs0;
             r[k] -= rdt*(x[k] - prevSoln(k,0));
             diag[k] = 1;
         }

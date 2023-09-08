@@ -14,14 +14,6 @@
 namespace Cantera
 {
 
-InterfaceKinetics::InterfaceKinetics(ThermoPhase* thermo)
-    : InterfaceKinetics()
-{
-    warn_deprecated("InterfaceKinetics::InterfaceKinetics(ThermoPhase*)",
-        "To be removed after Cantera 3.0. Use default constructor instead.");
-    addPhase(*thermo);
-}
-
 InterfaceKinetics::~InterfaceKinetics()
 {
     delete m_integrator;
@@ -55,7 +47,7 @@ void InterfaceKinetics::_update_rates_T()
     _update_rates_phi();
 
     // Go find the temperature from the surface
-    double T = thermo(reactionPhaseIndex()).temperature();
+    double T = thermo(0).temperature();
     m_redo_rates = true;
     if (T != m_temp || m_redo_rates) {
         //  Calculate the forward rate constant by calling m_rates and store it in m_rfn[]
@@ -73,7 +65,7 @@ void InterfaceKinetics::_update_rates_T()
 
     // loop over interface MultiRate evaluators for each reaction type
     for (auto& rates : m_interfaceRates) {
-        bool changed = rates->update(thermo(reactionPhaseIndex()), *this);
+        bool changed = rates->update(thermo(0), *this);
         if (changed) {
             rates->getRateConstants(m_rfn.data());
             m_ROP_ok = false;
@@ -100,7 +92,7 @@ void InterfaceKinetics::_update_rates_phi()
 void InterfaceKinetics::_update_rates_C()
 {
     for (size_t n = 0; n < nPhases(); n++) {
-        const ThermoPhase* tp = m_thermo[n];
+        const auto& tp = thermo(n);
         /*
          * We call the getActivityConcentrations function of each ThermoPhase
          * class that makes up this kinetics object to obtain the generalized
@@ -108,10 +100,10 @@ void InterfaceKinetics::_update_rates_C()
          * the vector m_conc. m_start[] are integer indices for that vector
          * denoting the start of the species for each phase.
          */
-        tp->getActivityConcentrations(m_actConc.data() + m_start[n]);
+        tp.getActivityConcentrations(m_actConc.data() + m_start[n]);
 
         // Get regular concentrations too
-        tp->getConcentrations(m_conc.data() + m_start[n]);
+        tp.getConcentrations(m_conc.data() + m_start[n]);
     }
     m_ROP_ok = false;
 }
@@ -133,7 +125,7 @@ void InterfaceKinetics::updateKc()
          * and m_mu0_Kc[]
          */
         updateMu0();
-        double rrt = 1.0 / thermo(reactionPhaseIndex()).RT();
+        double rrt = 1.0 / thermo(0).RT();
 
         // compute Delta mu^0 for all reversible reactions
         getRevReactionDelta(m_mu0_Kc.data(), m_rkcn.data());
@@ -165,8 +157,7 @@ void InterfaceKinetics::updateMu0()
         thermo(n).getStandardChemPotentials(m_mu0.data() + m_start[n]);
         for (size_t k = 0; k < thermo(n).nSpecies(); k++) {
             m_mu0_Kc[ik] = m_mu0[ik] + Faraday * m_phi[n] * thermo(n).charge(k);
-            m_mu0_Kc[ik] -= thermo(reactionPhaseIndex()).RT()
-                            * thermo(n).logStandardConc(k);
+            m_mu0_Kc[ik] -= thermo(0).RT() * thermo(n).logStandardConc(k);
             ik++;
         }
     }
@@ -175,7 +166,7 @@ void InterfaceKinetics::updateMu0()
 void InterfaceKinetics::getEquilibriumConstants(double* kc)
 {
     updateMu0();
-    double rrt = 1.0 / thermo(reactionPhaseIndex()).RT();
+    double rrt = 1.0 / thermo(0).RT();
     std::fill(kc, kc + nReactions(), 0.0);
     getReactionDelta(m_mu0_Kc.data(), kc);
     for (size_t i = 0; i < nReactions(); i++) {
@@ -363,7 +354,7 @@ void InterfaceKinetics::getDeltaSSEnthalpy(double* deltaH)
         thermo(n).getEnthalpy_RT(m_grt.data() + m_start[n]);
     }
     for (size_t k = 0; k < m_kk; k++) {
-        m_grt[k] *= thermo(reactionPhaseIndex()).RT();
+        m_grt[k] *= thermo(0).RT();
     }
 
     // Use the stoichiometric manager to find deltaH for each reaction.
@@ -500,27 +491,10 @@ void InterfaceKinetics::addThermo(shared_ptr<ThermoPhase> thermo)
     m_phaseIsStable.push_back(true);
 }
 
-void InterfaceKinetics::addPhase(ThermoPhase& thermo)
-{
-    Kinetics::addPhase(thermo);
-    m_phaseExists.push_back(true);
-    m_phaseIsStable.push_back(true);
-}
-
 void InterfaceKinetics::init()
 {
-    size_t ks = reactionPhaseIndex();
-    if (ks == npos) {
-        throw CanteraError("InterfaceKinetics::init",
-                           "no surface phase is present.");
-    }
-
-    // Check to see that the interface routine has a dimension of 2
-    m_surf = (SurfPhase*)&thermo(ks);
-    if (m_surf->nDim() != m_nDim) {
-        throw CanteraError("InterfaceKinetics::init",
-                           "expected interface dimension = 2, but got dimension = {}",
-                           m_surf->nDim());
+    if (thermo(0).nDim() > 2) {
+        throw CanteraError("InterfaceKinetics::init", "no interface phase is present.");
     }
 }
 

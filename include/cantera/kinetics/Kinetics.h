@@ -77,12 +77,11 @@ class AnyMap;
 //! class overloads the virtual methods of Kinetics to implement a particular
 //! kinetics model.
 //!
-//! For example, class GasKinetics implements reaction rate expressions
-//! appropriate for homogeneous reactions in ideal gas mixtures, and class
-//! InterfaceKinetics implements expressions appropriate for heterogeneous
-//! mechanisms at interfaces, including how to handle reactions involving
-//! charged species of phases with different electric potentials --- something
-//! that class GasKinetics doesn't deal with at all.
+//! For example, class BulkKinetics implements reaction rate expressions appropriate for
+//! homogeneous reactions, and class InterfaceKinetics implements expressions
+//! appropriate for heterogeneous mechanisms at interfaces, including how to handle
+//! reactions involving charged species of phases with different electric potentials ---
+//! something that class BulkKinetics doesn't deal with at all.
 //!
 //! Many of the methods of class Kinetics write into arrays the values of some
 //! quantity for each species, for example the net production rate. These
@@ -213,15 +212,6 @@ public:
     }
 
     /**
-     * This returns the integer index of the phase which has ThermoPhase type
-     * cSurf. For heterogeneous mechanisms, this identifies the one surface
-     * phase. For homogeneous mechanisms, this returns -1.
-     *
-     * @deprecated To be removed after %Cantera 3.0. Use reactionPhaseIndex instead.
-     */
-    size_t surfacePhaseIndex() const;
-
-    /**
      * Phase where the reactions occur. For heterogeneous mechanisms, one of
      * the phases in the list of phases represents the 2D interface or 1D edge
      * at which the reactions take place. This method returns the index of the
@@ -229,12 +219,10 @@ public:
      * of phases. If there is more than one, the index of the first one is
      * returned. For homogeneous mechanisms, the value 0 is returned.
      *
-     * @deprecated Starting in %Cantera 3.0, the reacting phase will always be the
+     * @deprecated Starting in %Cantera 3.0, the reacting phase is always be the
      *     first phase in the InterfaceKinetics object. To be removed after %Cantera 3.1.
      */
-    size_t reactionPhaseIndex() const {
-        return m_rxnphase;
-    }
+    size_t reactionPhaseIndex() const;
 
     /**
      * Return pointer to phase where the reactions occur.
@@ -312,23 +300,6 @@ public:
      * @param nm   Input string name of the species
      */
     size_t kineticsSpeciesIndex(const string& nm) const;
-
-    /**
-     * This routine will look up a species number based on the input
-     * string nm. The lookup of species will occur in the specified
-     * phase of the object, or all phases if ph is "<any>".
-     *
-     *  return
-     *   - If a match is found, the position in the species list is returned.
-     *   - If no match is found, the value npos (-1) is returned.
-     *
-     * @param nm   Input string name of the species
-     * @param ph   Input string name of the phase.
-     * @deprecated To be removed after %Cantera 3.0. Species names should be unique
-     *     across all phases.
-     */
-    size_t kineticsSpeciesIndex(const string& nm,
-                                const string& ph) const;
 
     /**
      * This function looks up the name of a species and returns a
@@ -1228,24 +1199,6 @@ public:
     }
 
     /**
-     * String specifying the type of reaction.
-     *
-     * @param i   reaction index
-     * @since Method returned magic number prior to %Cantera 3.0.
-     * @deprecated To be removed after %Cantera 3.0. Replace with
-     *     `kin->reaction(i)->type()`
-     */
-    virtual string reactionType(size_t i) const;
-
-    /**
-     * String specifying the type of reaction.
-     *
-     * @param i   reaction index
-     * @deprecated To be removed after %Cantera 3.0.
-     */
-    virtual string reactionTypeStr(size_t i) const;
-
-    /**
      * True if reaction i has been declared to be reversible. If isReversible(i)
      * is false, then the reverse rate of progress for reaction i is always
      * zero.
@@ -1255,25 +1208,6 @@ public:
     virtual bool isReversible(size_t i) {
         throw NotImplementedError("Kinetics::isReversible");
     }
-
-    /**
-     * Return a string representing the reaction.
-     *
-     * @param i   reaction index
-     * @deprecated To be removed after %Cantera 3.0. Replace with
-     *     `kin->reaction(i)->equation()`.
-     */
-    string reactionString(size_t i) const;
-
-    //! Returns a string containing the reactants side of the reaction equation.
-    //! @deprecated To be removed after %Cantera 3.0. Replace with
-    //!     `kin->reaction(i)->reactantString()`
-    string reactantString(size_t i) const;
-
-    //! Returns a string containing the products side of the reaction equation.
-    //! @deprecated To be removed after %Cantera 3.0. Replace with
-    //!     `kin->reaction(i)->productString()`
-    string productString(size_t i) const;
 
     /**
      * Return the forward rate constants
@@ -1324,9 +1258,6 @@ public:
      *
      *  - #m_start -> vector of integers, containing the starting position of
      *    the species for each phase in the kinetics mechanism.
-     *  - #m_rxnphase -> index of the phase where reactions occur, which is the lowest-
-     *    dimensional phase in the system, for example the surface in a surface
-     *    mechanism.
      *  - #m_thermo -> vector of pointers to ThermoPhase phases that
      *    participate in the kinetics mechanism.
      *  - #m_phaseindex -> map containing the string id of each
@@ -1337,11 +1268,6 @@ public:
      * @since New in %Cantera 3.0. Replaces addPhase.
      */
     virtual void addThermo(shared_ptr<ThermoPhase> thermo);
-
-    //! @see Kinetics::addThermo(shared_ptr<ThermoPhase>)
-    //! @deprecated To be removed after %Cantera 3.0. Replaced by addThermo
-    //!     pointer.
-    virtual void addPhase(ThermoPhase& thermo);
 
     /**
      * Prepare the class for the addition of reactions, after all phases have
@@ -1461,20 +1387,6 @@ public:
      */
     virtual pair<size_t, size_t> checkDuplicates(bool throw_err=true) const;
 
-    /**
-     * Takes as input an array of properties for all species in the mechanism
-     * and copies those values belonging to a particular phase to the output
-     * array.
-     * @param data Input data array.
-     * @param phase Pointer to one of the phase objects participating in this
-     *     reaction mechanism
-     * @param phase_data Output array where the values for the the specified
-     *     phase are to be written.
-     * @deprecated Unused. To be removed after %Cantera 3.0.
-     */
-    void selectPhase(const double* data, const ThermoPhase* phase,
-                     double* phase_data);
-
     //! Set root Solution holding all phase information
     virtual void setRoot(shared_ptr<Solution> root) {
         m_root = root;
@@ -1485,12 +1397,6 @@ public:
     shared_ptr<Solution> root() const {
         return m_root.lock();
     }
-
-    //! Calculate the reaction enthalpy of a reaction which
-    //! has not necessarily been added into the Kinetics object
-    //! @deprecated To be removed after %Cantera 3.0
-    virtual double reactionEnthalpy(const Composition& reactants,
-                                    const Composition& products);
 
 protected:
     //! Cache for saved calculations within each Kinetics object.
@@ -1557,15 +1463,8 @@ protected:
      * bulk phases. The order that the objects are listed determines the order
      * in which the species comprising each phase are listed in the source term
      * vector, originating from the reaction mechanism.
-     *
-     * Note that this kinetics object doesn't own these ThermoPhase objects
-     * and is not responsible for creating or deleting them.
      */
-    vector<ThermoPhase*> m_thermo;
-
-    //! vector of shared pointers, @see m_thermo
-    //! @todo replace m_thermo with shared version after %Cantera 3.0
-    vector<shared_ptr<ThermoPhase>> m_sharedThermo;
+    vector<shared_ptr<ThermoPhase>> m_thermo;
 
     /**
      * m_start is a vector of integers specifying the beginning position for the
@@ -1580,17 +1479,6 @@ protected:
      * value, so that missing phases return -1.
      */
     map<string, size_t> m_phaseindex;
-
-    //! Index in the list of phases of the one surface phase.
-    //! @deprecated To be removed after %Cantera 3.0.
-    size_t m_surfphase = npos;
-
-    //! Phase Index where reactions are assumed to be taking place
-    /*!
-     * We calculate this by assuming that the phase with the lowest
-     * dimensionality is the phase where reactions are taking place.
-     */
-    size_t m_rxnphase = npos;
 
     //! number of spatial dimensions of lowest-dimensional phase.
     size_t m_mindim = 4;

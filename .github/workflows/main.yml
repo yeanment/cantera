@@ -90,11 +90,9 @@ jobs:
     - name: Upgrade pip
       run: python3 -m pip install -U pip setuptools wheel
     - name: Install Python dependencies
-      # h5py is optional; some versions don't have binaries (yet)
       run: |
         python3 -m pip install ruamel.yaml scons==3.1.2 numpy cython pandas pytest \
         pytest-github-actions-annotate-failures pint
-        python3 -m pip install h5py
     - name: Build Cantera
       run: |
         python3 `which scons` build env_vars=all -j2 debug=n --debug=time \
@@ -143,7 +141,7 @@ jobs:
       run: python3 -m pip install -U pip setuptools wheel
     - name: Install Python dependencies
       run: |
-        python3 -m pip install ruamel.yaml scons numpy cython pandas h5py pytest pytest-github-actions-annotate-failures pint
+        python3 -m pip install ruamel.yaml scons numpy cython pandas pytest pytest-github-actions-annotate-failures pint
     - name: Build Cantera
       run: python3 `which scons` build env_vars=all
         CXX=clang++-12 CC=clang-12 f90_interface=n extra_lib_dirs=/usr/lib/llvm/lib
@@ -193,10 +191,8 @@ jobs:
     - name: Upgrade pip
       run: $PYTHON_CMD -m pip install -U pip 'setuptools>=47.0.0,<48' wheel
     - name: Install Python dependencies
-      # h5py is optional; may fail if no wheel is present for a given OS/Python version
       run: |
         $PYTHON_CMD -m pip install ruamel.yaml numpy cython pandas pytest pytest-github-actions-annotate-failures pint
-        $PYTHON_CMD -m pip install h5py || true
     - name: Install Python dependencies for GH Python
       if: matrix.python-version == '3.11'
       run:
@@ -244,7 +240,7 @@ jobs:
       run: python3 -m pip install -U pip setuptools wheel
     - name: Install Python dependencies
       run: |
-        python3 -m pip install ruamel.yaml scons numpy cython pandas scipy pytest h5py \
+        python3 -m pip install ruamel.yaml scons numpy cython pandas scipy pytest \
         pytest-github-actions-annotate-failures pytest-cov gcovr pint
     - name: Setup .NET Core SDK
       uses: actions/setup-dotnet@v2
@@ -413,7 +409,7 @@ jobs:
         run: python3 -m pip install -U pip setuptools wheel
       - name: Install Python dependencies
         run: |
-            python3 -m pip install numpy ruamel.yaml h5py pandas matplotlib scipy pint
+            python3 -m pip install numpy ruamel.yaml pandas matplotlib scipy pint
             python3 -m pip install --pre --no-index --find-links dist cantera
       - name: Run the examples
         # See https://unix.stackexchange.com/a/392973 for an explanation of the -exec part
@@ -476,7 +472,7 @@ jobs:
         # use boost-cpp rather than boost from conda-forge
         run: |
           conda install -q sundials=${{ matrix.sundials-ver }} scons numpy ruamel.yaml \
-          cython boost-cpp fmt=${{ matrix.fmt-ver }} eigen yaml-cpp h5py pandas \
+          cython boost-cpp fmt=${{ matrix.fmt-ver }} eigen yaml-cpp pandas \
           libgomp openblas pytest highfive
       - name: Build Cantera
         run: |
@@ -499,7 +495,7 @@ jobs:
       - name: Test Essentials
         # ensure that Python package loads and converter scripts work
         run: |
-          python -c 'import cantera as ct; import sys; sys.exit(0) if ct.__version__.startswith("3.0.0") else sys.exit(1)'
+          python -c 'import cantera as ct; import sys; sys.exit(0) if ct.__version__.startswith("3.1.0") else sys.exit(1)'
           ck2yaml --input=test/data/h2o2.inp --output=h2o2-test.yaml
           test -f h2o2-test.yaml
           cti2yaml test/data/ch4_ion.cti ch4_ion-test.yaml
@@ -546,7 +542,7 @@ jobs:
       # use boost-cpp rather than boost from conda-forge
       # Install SCons >=4.4.0 to make sure that MSVC_TOOLSET_VERSION variable is present
       run: |
-        mamba install -q '"scons>=4.4.0"' numpy cython ruamel.yaml boost-cpp eigen yaml-cpp h5py pandas pytest highfive pint fmt=${{ matrix.fmt-ver }}
+        mamba install -q '"scons>=4.4.0"' numpy cython ruamel.yaml boost-cpp eigen yaml-cpp pandas pytest highfive pint fmt=${{ matrix.fmt-ver }}
       shell: pwsh
     - name: Build Cantera
       run: scons build system_eigen=y system_yamlcpp=y system_highfive=y logging=debug
@@ -578,7 +574,7 @@ jobs:
       # ensure that Python package loads and converter scripts work
       run: |
         set -x
-        python -c 'import cantera as ct; import sys; sys.exit(0) if ct.__version__.startswith("3.0.0") else sys.exit(1)'
+        python -c 'import cantera as ct; import sys; sys.exit(0) if ct.__version__.startswith("3.1.0") else sys.exit(1)'
         ck2yaml --input=test/data/h2o2.inp --output=h2o2-test.yaml
         test -f h2o2-test.yaml
         cti2yaml test/data/ch4_ion.cti ch4_ion-test.yaml
@@ -674,7 +670,7 @@ jobs:
       run: python3 -m pip install -U pip setuptools wheel
     - name: Install Python dependencies
       run: |
-        python3 -m pip install ruamel.yaml scons numpy cython pandas h5py pytest \
+        python3 -m pip install ruamel.yaml scons numpy cython pandas pytest \
         pytest-github-actions-annotate-failures pint
     - name: Setup Intel oneAPI environment
       run: |
@@ -686,52 +682,6 @@ jobs:
         --debug=time f90_interface=n # FORTRAN=ifx
     - name: Test Cantera
       run: |
-        python3 `which scons` test show_long_tests=yes verbose_tests=yes --debug=time
-
-  linux-intel-oneapi-classic:
-    name: intel-oneAPI classic on Ubuntu, Python 3.8
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      INTEL_REPO: https://apt.repos.intel.com
-      INTEL_KEY: GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
-    steps:
-    - name: Intel Apt repository
-      timeout-minutes: 1
-      run: |
-        wget ${INTEL_REPO}/intel-gpg-keys/${INTEL_KEY}
-        sudo apt-key add ${INTEL_KEY}
-        rm ${INTEL_KEY}
-        echo "deb ${INTEL_REPO}/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
-        sudo apt-get update
-    - name: Install Intel oneAPI
-      timeout-minutes: 15
-      run: |
-        sudo apt-get install intel-oneapi-compiler-fortran intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic \
-        intel-oneapi-mpi intel-oneapi-mpi-devel intel-oneapi-mkl ninja-build libboost-dev
-    - uses: actions/checkout@v3
-      name: Checkout the repository
-      with:
-        submodules: recursive
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.8
-        architecture: x64
-    - name: Upgrade pip
-      run: python3 -m pip install -U pip setuptools wheel
-    - name: Install Python dependencies
-      run: python3 -m pip install ruamel.yaml scons numpy cython h5py pandas pytest
-        pytest-github-actions-annotate-failures pint
-    - name: Setup Intel oneAPI environment
-      run: |
-        source /opt/intel/oneapi/setvars.sh
-        printenv >> $GITHUB_ENV
-    - name: Build Cantera
-      run: python3 `which scons` build env_vars=all CC=icc CXX=icpc -j2 debug=n
-        --debug=time f90_interface=n # FORTRAN=ifort
-    - name: Test Cantera
-      run:
         python3 `which scons` test show_long_tests=yes verbose_tests=yes --debug=time
 
   windows-mingw:

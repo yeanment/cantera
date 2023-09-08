@@ -31,19 +31,12 @@ public:
     //! Construct a OneDim container for the domains in the list *domains*.
     OneDim(vector<shared_ptr<Domain1D>>& domains);
 
-    //! @deprecated To be removed after %Cantera 3.0;
-    //!     superseded by OneDim() using vector<shared_ptr<Domain1D>>
-    OneDim(vector<Domain1D*> domains);
     virtual ~OneDim();
     OneDim(const OneDim&) = delete;
     OneDim& operator=(const OneDim&) = delete;
 
     //! Add a domain. Domains are added left-to-right.
     void addDomain(shared_ptr<Domain1D> d);
-
-    //! @deprecated To be removed after %Cantera 3.0;
-    //!     superseded by addDomain() using shared_ptr<Domain1D>
-    void addDomain(Domain1D* d);
 
     //! Return a reference to the Jacobian evaluator of an OneDim object.
     //! @ingroup derivGroup
@@ -109,12 +102,12 @@ public:
 
     //! Pointer to left-most domain (first added).
     Domain1D* left() {
-        return m_dom[0];
+        return m_dom[0].get();
     }
 
     //! Pointer to right-most domain (last added).
     Domain1D* right() {
-        return m_dom.back();
+        return m_dom.back().get();
     }
 
     //! Number of solution components at global point jg.
@@ -232,9 +225,6 @@ public:
      */
     void writeStats(int printTime = 1);
 
-    //! @deprecated To be removed after %Cantera 3.0; unused.
-    AnyMap serialize(const double* soln) const;
-
     // options
     void setMinTimeStep(double tmin) {
         m_tmin = tmin;
@@ -349,13 +339,9 @@ protected:
     size_t m_bw = 0; //!< Jacobian bandwidth
     size_t m_size = 0; //!< solution vector size
 
-    vector<shared_ptr<Domain1D>> m_sharedDom;
-    vector<shared_ptr<Domain1D>> m_sharedConnect;
-    vector<shared_ptr<Domain1D>> m_sharedBulk;
-
-    vector<Domain1D*> m_dom; //!< @todo remove raw pointers after %Cantera 3.0
-    vector<Domain1D*> m_connect; //!< @todo remove raw pointers after %Cantera 3.0
-    vector<Domain1D*> m_bulk; //!< @todo remove raw pointers after %Cantera 3.0
+    vector<shared_ptr<Domain1D>> m_dom;
+    vector<shared_ptr<Domain1D>> m_connect;
+    vector<shared_ptr<Domain1D>> m_bulk;
 
     bool m_init = false;
     vector<size_t> m_nvars;

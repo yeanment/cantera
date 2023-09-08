@@ -23,13 +23,6 @@ Domain1D::~Domain1D()
 {
 }
 
-int Domain1D::domainType()
-{
-    warn_deprecated("Domain1D::domainType",
-        "To be changed after Cantera 3.0; for new behavior, see 'type'.");
-    return m_type;
-}
-
 void Domain1D::resize(size_t nv, size_t np)
 {
     // if the number of components is being changed, then a
@@ -135,16 +128,6 @@ AnyMap Domain1D::getMeta() const
     return state;
 }
 
-AnyMap Domain1D::serialize(const double* soln) const
-{
-    warn_deprecated("Domain1D::serialize",
-        "To be removed after Cantera 3.0; superseded by asArray.");
-    AnyMap out;
-    auto arr = asArray(soln);
-    arr->writeEntry(out, "", "");
-    return out;
-}
-
 shared_ptr<SolutionArray> Domain1D::toArray(bool normalize) const {
     if (!m_state) {
         throw CanteraError("Domain1D::toArray",
@@ -201,15 +184,6 @@ void Domain1D::setMeta(const AnyMap& meta)
     }
 }
 
-void Domain1D::restore(const AnyMap& state, double* soln, int loglevel)
-{
-    warn_deprecated("Domain1D::restore",
-        "To be removed after Cantera 3.0; restore from SolutionArray instead.");
-    auto arr = SolutionArray::create(solution());
-    arr->readEntry(state, "", "");
-    fromArray(*arr, soln);
-}
-
 void Domain1D::locate()
 {
     if (m_left) {
@@ -238,20 +212,6 @@ void Domain1D::setupGrid(size_t n, const double* z)
             m_z[j] = z[j];
         }
     }
-}
-
-void Domain1D::showSolution_s(std::ostream& s, const double* x)
-{
-    warn_deprecated("Domain1D::showSolution_s",
-        "To be removed after Cantera 3.0; replaced by 'show'.");
-    show(s, x);
-}
-
-void Domain1D::showSolution(const double* x)
-{
-    warn_deprecated("Domain1D::showSolution",
-        "To be removed after Cantera 3.0; replaced by 'show'.");
-    show(x);
 }
 
 void Domain1D::show(const double* x)
