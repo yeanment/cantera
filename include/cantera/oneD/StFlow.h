@@ -173,6 +173,86 @@ public:
         }
     }
 
+    //! The current ds for arc length coninuation
+    double arcLengthContDs() const{
+        if (m_arcLengthCont&& (m_ds != Undef)) {
+            return m_ds;
+        }
+    }
+
+    //! The current maximal temperature in previous estimation
+    double arcLengthContTmaxPrev() const {
+        if (m_arcLengthCont && (m_tMaxPrev != Undef)) {
+            return m_tMaxPrev;
+        }
+    }
+
+    //! The current mass flow rate in previous estimation
+    double arcLengthContMdotPrev() const {
+        if (m_arcLengthCont && (m_lnmdotPrev != Undef)) {
+            return std::exp(m_lnmdotPrev);
+        }
+    }
+
+    //! The reference delta T
+    double arcLengthContDeltaTmaxRef() const {
+        if (m_arcLengthCont && (m_deltaTmaxRef != Undef)) {
+            return m_deltaTmaxRef;
+        }
+    }
+
+    //! The reference delta mdot
+    double arcLengthContDeltalnmdotRef() const {
+        if (m_arcLengthCont && (m_deltaLnmdotRef != Undef)) {
+            return m_deltaLnmdotRef;
+        }
+    }
+    
+    //! The current estimation of dTmax/ds
+    double arcLengthContDTmaxDs() const {
+        if (m_arcLengthCont && (m_dTmaxds != Undef)) {
+            return m_dTmaxds;
+        }
+    }
+
+    //! The current estimation of dTmax/ds
+    double arcLengthContDlnmdotDs() const {
+        if (m_arcLengthCont && (m_dlnmdotds != Undef)) {
+            return m_dlnmdotds;
+        }
+    }
+
+    //! Set the ds for arc length contniuation
+    void setArcLengthContDs(double ds) {
+        if (m_arcLengthCont) {
+            m_ds = ds;
+        }
+    }
+
+    //! Set the maximal temperature and inlet flow rate in previous estimation
+    void setArcLengthContPrev(double tMax, double mdot) {
+        if (m_arcLengthCont) {
+            m_tMaxPrev = tMax;
+            m_lnmdotPrev = std::log(mdot);
+        }
+    }
+
+    //! Set the reference delta T and delta mdot
+    void setArcLengthContRef(double deltaTmax, double deltaLnmdot) {
+        if (m_arcLengthCont) {
+            m_deltaTmaxRef = deltaTmax;
+            m_deltaLnmdotRef = deltaLnmdot;
+        }
+    }
+
+    //! Set the derivative delta T and delta mdot
+    void setArcLengthContDDs(double deltaTmax, double deltaLnmdot) {
+        if (m_arcLengthCont) {
+            m_dTmaxds = deltaTmax;
+            m_dlnmdotds = deltaLnmdot;
+        }
+    }
+
     //! @}
 
     string componentName(size_t n) const override;
@@ -394,6 +474,20 @@ public:
         return m_offsetPointControl;
     }
 
+    //! Set the speceis of one-point flame control
+    void enableArcLengthContinuation(bool arcLengthCont) {
+        if (m_onePointControl || m_twoPointControl) {
+            throw CanteraError("StFlow::enableTwoPointControl",
+                               "Point control techniques has been set.");
+        } else {
+            m_arcLengthCont = arcLengthCont;
+        }
+    }
+
+    //! Index of the species for point control
+    bool arcLengthContEnabled() {
+        return m_arcLengthCont;
+    }
 
 protected:
     AnyMap getMeta() const override;
@@ -613,6 +707,12 @@ protected:
     //! Flag for two point flame control
     bool m_twoPointControl = false;
 
+    //! Flag for arc length continuation control
+    bool m_arcLengthCont = false;
+
+    //! Flag for direction of arc length continuation control 
+    bool m_arcLengthContDown = true;
+
     //! Update the transport properties at grid points in the range from `j0`
     //! to `j1`, based on solution `x`.
     virtual void updateTransport(double* x, size_t j0, size_t j1);
@@ -638,6 +738,30 @@ public:
 
     //! The added equation for point control method, default is temperature
     size_t m_offsetPointControl = c_offset_T;
+
+    //! The position of maximal temperature point at current instance
+    double m_zTMax = 0.;
+
+    //! The delta s in arc_length continuation
+    double m_ds = Undef;
+
+    //! The maximal temperature at previous instance
+    double m_tMaxPrev = Undef;
+
+    //! The inlet flow rate at previous instance
+    double m_lnmdotPrev = Undef;
+
+    //! The maximal temperature at previous instance
+    double m_deltaTmaxRef = 10.;
+
+    //! The inlet flow rate at previous instance
+    double m_deltaLnmdotRef = std::log(1.3);
+
+    //! The dTmax/ds in arc_length continuation
+    double m_dTmaxds = Undef;
+
+    //! The dln(mdot)/dx in arc_length continuation
+    double m_dlnmdotds = Undef;
 
 private:
     vector<double> m_ybar;

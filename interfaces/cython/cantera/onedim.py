@@ -236,6 +236,73 @@ class FlameBase(Sim1D):
         self.flame.offsetPointControl = offset
 
     @property
+    def arcLengthCont_enabled(self):
+        """
+        Get/Set whether or not to active two point flame control.
+        """
+        return self.flame.arcLengthCont_enabled
+
+    @arcLengthCont_enabled.setter
+    def arcLengthCont_enabled(self, enable):
+        self.flame.arcLengthCont_enabled = enable
+
+    @property
+    def ds(self):
+        return self.flame.ds
+
+    @ds.setter
+    def ds(self, T):
+        self.flame.ds = T
+
+    @property
+    def tMaxPrev(self):
+        return self.flame.tMaxPrev
+
+    @tMaxPrev.setter
+    def tMaxPrev(self, T):
+        self.flame.tMaxPrev = T
+
+    @property
+    def mdotPrev(self):
+        return self.flame.mdotPrev
+
+    @mdotPrev.setter
+    def mdotPrev(self, T):
+        self.flame.mdotPrev = T
+
+    @property
+    def deltaTmaxRef(self):
+        return self.flame.deltaTmaxRef
+
+    @deltaTmaxRef.setter
+    def deltaTmaxRef(self, T):
+        self.flame.deltaTmaxRef = T
+
+    @property
+    def deltalnmdotRef(self):
+        return self.flame.deltalnmdotRef
+
+    @deltalnmdotRef.setter
+    def deltalnmdotRef(self, T):
+        self.flame.deltalnmdotRef = T
+
+    @property
+    def dTmaxds(self):
+        return self.flame.dTmaxds
+
+    @dTmaxds.setter
+    def dTmaxds(self, T):
+        self.flame.dTmaxds = T
+
+    @property
+    def dlnmdotds(self):
+        return self.flame.dlnmdotds
+
+    @dlnmdotds.setter
+    def dlnmdotds(self, T):
+        self.flame.dlnmdotds = T
+
+    @property
     def soret_enabled(self):
         """
         Get/Set whether or not to include diffusive mass fluxes due to the

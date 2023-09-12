@@ -424,6 +424,10 @@ void Sim1D::solve(int loglevel, bool refine_grid)
             writeline('.', 78, true, true);
         }
         while (!ok) {
+
+            // update the maximal temperature point
+            setArcLengthContTmaxBoundary();
+
             // Attempt to solve the steady problem
             setSteadyMode();
             newton().setOptions(m_ss_jac_age);
@@ -880,6 +884,34 @@ void Sim1D::setRightInternalBoundary(double t)
     finalize();
     // return np;
 }
+
+void Sim1D::setArcLengthContTmaxBoundary()
+{
+    double tMax = 0.0;
+    double zfixed = 0.0;    
+    vector<size_t> dsize;
+
+    for (size_t n = 0; n < nDomains(); n++) {
+        Domain1D& d = domain(n);
+
+        // loop over current grid to determine where new point is needed
+        StFlow* d_axis = dynamic_cast<StFlow*>(&domain(n));
+        size_t npnow = d.nPoints();
+        if (d_axis && d_axis ->isStrained() && d_axis->arcLengthContEnabled()) {
+            for (size_t m = 1; m < npnow - 1; m++) {
+                // Only consider inside point for maximal temperature
+                double t1 = value(n, c_offset_T, m);
+                double z1 = d.grid(m);
+                if (t1 > tMax) {
+                    tMax = t1;
+                    zfixed = z1;
+                }
+            }
+            d_axis->m_zTMax = zfixed;
+        }
+    }
+}
+
 
 double Sim1D::fixedTemperature()
 {

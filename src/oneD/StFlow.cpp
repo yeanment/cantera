@@ -448,12 +448,36 @@ void StFlow::evalResidual(double* x, double* rsd, int* diag,
 
             // set residual of poisson's equ to zero
             rsd[index(c_offset_E, 0)] = x[index(c_offset_E, j)];
+            if (m_arcLengthCont && m_usesLambda) {
+                rsd[index(c_offset_E, j)] = x[index(c_offset_E, j+1)] - x[index(c_offset_E, j)];
+                // rsd[index(c_offset_E, j)] = -std::log(rho_u(x, 0));
+                // rsd[index(c_offset_E, j)] = - x[index(c_offset_E, j)];
+                // diag[index(c_offset_E, j)] = 0;
+                // Modify the dummpy equation in c_offset_L
+                rsd[index(c_offset_L, 0)] = -rho_u(x, 0);
+            }
         } else if (j == m_points - 1) {
             evalRightBoundary(x, rsd, diag, rdt);
         } else { // interior points
             evalContinuity(j, x, rsd, diag, rdt);
             // set residual of poisson's equ to zero
             rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)];
+            // Borrow the electrity equaion to arc length continuation
+            // x[index(c_offset_E, j)] = lnmdot
+            if (m_usesLambda && m_arcLengthCont) {
+                if (grid(j) > m_zTMax) {
+                    rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)] - x[index(c_offset_E, j-1)];
+                } else if (grid(j) == m_zTMax) {
+                    // Modified internal boundary
+                    double dTmax = (T(x, j) - m_tMaxPrev)/m_deltaTmaxRef; // Ref dT = 10
+                    double dlnmdot = (x[index(c_offset_E, j)] - m_lnmdotPrev)/m_deltaLnmdotRef;
+                    rsd[index(c_offset_E, j)] = dTmax*m_dTmaxds + dlnmdot*m_dlnmdotds - m_ds;
+                    // rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)] - m_lnmdotPrev;
+                } else if (grid(j) < m_zTMax) {
+                    rsd[index(c_offset_E, j)] = x[index(c_offset_E, j+1)] - x[index(c_offset_E, j)];
+                }
+                diag[index(c_offset_E, j)] = 0;
+            }
 
             //------------------------------------------------
             //    Radial momentum equation
@@ -700,6 +724,9 @@ bool StFlow::componentActive(size_t n) const
     case c_offset_L: // lambda
         return m_usesLambda;
     case c_offset_E: // eField
+        if (m_arcLengthCont && m_usesLambda) {
+            return true;
+        }
         return false;
     // case c_offset_Uo: // Uo
     //     return m_onePointControl || m_twoPointControl;
@@ -1014,6 +1041,17 @@ void StFlow::evalRightBoundary(double* x, double* rsd, int* diag, double rdt)
     double sum = 0.0;
     // set residual of poisson's equ to zero
     rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)];
+    if (m_usesLambda && m_arcLengthCont) {
+        rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)] - x[index(c_offset_E, j-1)];
+        if (grid(j) == m_zTMax) {
+            // Modified internal boundary
+            double dTmax = (T(x, j) - m_tMaxPrev)/m_deltaTmaxRef; // Ref dT = 10
+            double dlnmdot = (x[index(c_offset_E, j)] - m_lnmdotPrev)/m_deltaLnmdotRef;
+            rsd[index(c_offset_E, j)] = dTmax*m_dTmaxds + dlnmdot*m_dlnmdotds - m_ds;
+        }
+        diag[index(c_offset_E, j)] = 0;
+    }
+
     for (size_t k = 0; k < m_nsp; k++) {
         sum += Y(x,k,j);
         rsd[index(k+c_offset_Y,j)] = m_flux(k,j-1) + rho_u(x,j)*Y(x,k,j);

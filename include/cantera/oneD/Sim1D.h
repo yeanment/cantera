@@ -197,6 +197,10 @@ public:
     //! flame control for stagnation flows.
     void setRightInternalBoundary(double temp);
 
+    //! Set the maximal temperature location. This is only used for arc length 
+    //! contonuation method for stagnation flows.
+    void setArcLengthContTmaxBoundary();
+
     //! Return temperature at the point used to fix the flame location
     double fixedTemperature();
 

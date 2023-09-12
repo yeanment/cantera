@@ -204,7 +204,16 @@ void Inlet1D::eval(size_t jg, double* xg, double* rg,
                 m_mdot = m_flow->density(0)*xb[c_offset_U];
                 // Release the boundary conditions at inlet side
                 rb[c_offset_L] += xb[c_offset_L];
-            } else {
+            } 
+            else if (m_flow->arcLengthContEnabled()) {
+                // Connect the dummy equation with current equation
+                m_mdot = std::exp(xb[c_offset_E]);
+                // m_mdot = m_flow->density(0)*xb[c_offset_U];
+                rb[c_offset_L] += m_mdot;
+                // Modify dummy equation in c_offsel_L
+                // rb[c_offset_E] += std::log(m_mdot);
+            }
+            else {
                 // The flow domain sets this to -rho*u. Add mdot to specify the mass
                 // flow rate
                 rb[c_offset_L] += m_mdot;

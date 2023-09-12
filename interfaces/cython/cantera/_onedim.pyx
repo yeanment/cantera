@@ -487,6 +487,55 @@ cdef class _FlowBase(Domain1D):
         def __set__(self, T):
             self.flow.setRightInternalBoundaryTemperature(T)
 
+    property ds:
+        """ mdotPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContDs()
+        def __set__(self, ds):
+            self.flow.setArcLengthContDs(ds)
+
+    property tMaxPrev:
+        """ tMaxPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContTmaxPrev()
+        def __set__(self, tMaxPrev):
+            self.flow.setArcLengthContPrev(tMaxPrev, self.mdotPrev)
+
+    property mdotPrev:
+        """ mdotPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContMdotPrev()
+        def __set__(self, mdotPrev):
+            self.flow.setArcLengthContPrev(self.tMaxPrev, mdotPrev)
+
+    property deltaTmaxRef:
+        """ tMaxPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContDeltaTmaxRef()
+        def __set__(self, deltaTmaxRef):
+            self.flow.setArcLengthContRef(deltaTmaxRef, self.deltalnmdotRef)
+
+    property deltalnmdotRef:
+        """ mdotPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContDeltalnmdotRef()
+        def __set__(self, deltalnmdotRef):
+            self.flow.setArcLengthContRef(self.deltaTmaxRef, deltalnmdotRef)
+
+    property dTmaxds:
+        """ dTmax/ds for arc length """
+        def __get__(self):
+            return self.flow.arcLengthContDTmaxDs()
+        def __set__(self, dTmax):
+            self.flow.setArcLengthContDDs(dTmax, self.dlnmdotds)
+
+    property dlnmdotds:
+        """ dlnmdot/ds """
+        def __get__(self):
+            return self.flow.arcLengthContDlnmdotDs()
+        def __set__(self, dlnmdotds):
+            self.flow.setArcLengthContDDs(self.dTmaxds, dlnmdotds)
+
     property transport_model:
         """
         Get/set the transport model used for calculating transport properties.
@@ -549,6 +598,13 @@ cdef class _FlowBase(Domain1D):
             return self.flow.twoPointControlEnabled()
         def __set__(self, enable):
             self.flow.enableTwoPointControl(<cbool>enable)
+
+    property arcLengthCont_enabled:
+        """ Determines whether or not to enable one point flame control"""
+        def __get__(self):
+            return self.flow.arcLengthContEnabled()
+        def __set__(self, enable):
+            self.flow.enableArcLengthContinuation(<cbool>enable)
 
     property energy_enabled:
         """ Determines whether or not to solve the energy equation."""

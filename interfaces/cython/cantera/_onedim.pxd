@@ -85,6 +85,19 @@ cdef extern from "cantera/oneD/StFlow.h":
         cbool twoPointControlEnabled()
         void setOffsetPointControl(size_t) except +translate_exception
         size_t offsetPointControl()
+        double arcLengthContDs()
+        double arcLengthContTmaxPrev()
+        double arcLengthContMdotPrev()
+        double arcLengthContDeltaTmaxRef()
+        double arcLengthContDeltalnmdotRef()
+        double arcLengthContDTmaxDs()
+        double arcLengthContDlnmdotDs()
+        void setArcLengthContDs(double ds)
+        void setArcLengthContPrev(double tMax, double mdot)
+        void setArcLengthContRef(double deltaTmax, double deltaLnmdot)
+        void setArcLengthContDDs(double deltaTmax, double deltaLnmdot)
+        void enableArcLengthContinuation(cbool arcLengthCont) 
+        cbool arcLengthContEnabled()
         size_t getSolvingStage() except +translate_exception
         void setSolvingStage(size_t) except +translate_exception
         void solveElectricField() except +translate_exception
