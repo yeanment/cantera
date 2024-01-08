@@ -163,12 +163,15 @@ classdef Kinetics < handle
             %     >> n = kin.kineticsSpeciesIndex(name, phase)
             %
             % :param name:
-            %    String name of the species.
+            %    String name or integer index of the species.
             % :param phase:
-            %    String name of the phase.
+            %    String name or integer index of the phase.
             % :return:
             %    Index of the species.
 
+            if nargin == 2
+                phase = '';
+            end
             n = ctFunc('kin_speciesIndex', kin.kinID, name, phase) + 1;
         end
 
@@ -231,21 +234,23 @@ classdef Kinetics < handle
             %     >> n = kin.reactantStoichCoeffs(species, rxns)
             %
             % :param species:
-            %    Species indices for which reactant stoichiometric
-            %    coefficients should be retrieved. Optional argument; if
-            %    specified, ``rxns`` must be specified as well.
+            %    Species indices or names for which reactant stoichiometric
+            %    coefficients should be retrieved.
+            %    Optional argument; if specified, ``rxns`` must be specified as well.
             % :param rxns:
             %    Reaction indices for which reactant stoichiometric
             %    coefficients should be retrieved. Optional argument; if
             %    specified, ``species`` must be specified as well.
             % :return:
             %    Returns a sparse matrix of all reactant stoichiometric
-            %    coefficients. The matrix elements ``nu(k, i)`` is the
-            %    stoichiometric coefficient of species k as a reactant in
-            %    reaction i. If ``species`` and ``rxns`` are specified, the
-            %    matrix will contain only entries for the specified species
-            %    and reactions. For example, ``stoich_p(a, 3, [1, 3, 5,
-            %    7])`` returns a sparse matrix containing only the
+            %    coefficients if there are more than 1 species or reactions,
+            %    otherwise returns an integer.
+            %    The matrix elements ``nu(k, i)`` is the stoichiometric
+            %    coefficient of species k as a reactant in reaction i.
+            %    If ``species`` and ``rxns`` are specified, the matrix
+            %    will contain only entries for the specified species
+            %    and reactions. For example, ``kin.reactantStoichCoeffs(3,
+            %    [1, 3, 5, 7])`` returns a sparse matrix containing only the
             %    coefficients for species 3 in reactions 1, 3, 5, and 7.
 
             nsp = kin.nTotalSpecies;
@@ -256,7 +261,11 @@ classdef Kinetics < handle
                 krange = 1:nsp;
                 irange = 1:nr;
             elseif nargin == 3
-                krange = species;
+                if ischar(species)
+                    krange = {species};
+                else
+                    krange = species;
+                end
                 irange = rxns;
             else
                 error('stoichReactant requires 1 or 3 arguments.')
@@ -265,17 +274,29 @@ classdef Kinetics < handle
             for k = krange
 
                 for i = irange
-                    t = ctFunc('kin_reactantStoichCoeff', kin.kinID, k - 1, i - 1);
+                    if iscell(k)
+                        kk = kin.kineticsSpeciesIndex(k{:});
+                    elseif ischar(k)
+                        kk = kin.kineticsSpeciesIndex(k);
+                    else
+                        kk = k;
+                    end
+
+                    t = ctFunc('kin_reactantStoichCoeff', kin.kinID, kk - 1, i - 1);
 
                     if t ~= 0.0
-                        temp(k, i) = t;
+                        temp(kk, i) = t;
                     end
 
                 end
 
             end
 
-            n = temp;
+            if length(krange) > 1 || length(irange) > 1
+                n = temp;
+            else
+                n = sum(full(temp), 'all');
+            end
         end
 
         function n = productStoichCoeffs(kin, species, rxns)
@@ -284,16 +305,24 @@ classdef Kinetics < handle
             %     >> n = kin.productStoichCoeffs(species, rxns)
             %
             % :param species:
-            %    Species indices for which product stoichiometric
-            %    coefficients should be retrieved. Optional argument; if
-            %    specified, ``rxns`` must be specified as well.
+            %    Species indices or names for which product stoichiometric
+            %    coefficients should be retrieved.
+            %    Optional argument; if specified, ``rxns`` must be specified as well.
             % :param rxns:
             %    Reaction indices for which product stoichiometric
             %    coefficients should be retrieved. Optional argument; if
             %    specified, ``species`` must be specified as well.
             % :return:
             %    Returns a sparse matrix of all product stoichiometric
-            %    coefficients.
+            %    coefficients if there are more than 1 species or reactions,
+            %    otherwise returns an integer.
+            %    The matrix elements ``nu(k, i)`` is the stoichiometric
+            %    coefficient of species k as a product in reaction i.
+            %    If ``species`` and ``rxns`` are specified, the matrix
+            %    will contain only entries for the specified species
+            %    and reactions. For example, ``kin.productStoichCoeffs(3,
+            %    [1, 3, 5, 7])`` returns a sparse matrix containing only the
+            %    coefficients for species 3 in reactions 1, 3, 5, and 7.
 
             nsp = kin.nTotalSpecies;
             nr = kin.nReactions;
@@ -303,7 +332,11 @@ classdef Kinetics < handle
                 krange = 1:nsp;
                 irange = 1:nr;
             elseif nargin == 3
-                krange = species;
+                if ischar(species)
+                    krange = {species};
+                else
+                    krange = species;
+                end
                 irange = rxns;
             else
                 error('stoichProduct requires 1 or 3 arguments.')
@@ -312,17 +345,28 @@ classdef Kinetics < handle
             for k = krange
 
                 for i = irange
-                    t = ctFunc('kin_productStoichCoeff', kin.kinID, k - 1, i - 1);
+
+                    if iscell(k)
+                        kk = kin.kineticsSpeciesIndex(k{:});
+                    else
+                        kk = k;
+                    end
+
+                    t = ctFunc('kin_productStoichCoeff', kin.kinID, kk - 1, i - 1);
 
                     if t ~= 0.0
-                        temp(k, i) = t;
+                        temp(kk, i) = t;
                     end
 
                 end
 
             end
 
-            n = temp;
+            if length(krange) > 1 || length(irange) > 1
+                n = temp;
+            else
+                n = sum(full(temp), 'all');
+            end
         end
 
         function n = netStoichCoeffs(kin, species, rxns)
@@ -331,21 +375,30 @@ classdef Kinetics < handle
             %     >> n = kin.netStoichCoeffs(species, rxns)
             %
             % :param species:
-            %    Species indices for which net stoichiometric coefficients
-            %    should be retrieved. Optional argument; if specified,
-            %    "rxns" must be specified as well.
+            %    Species indices or names for which net stoichiometric
+            %    coefficients should be retrieved.
+            %    Optional argument; if specified, ``rxns`` must be specified as well.
             % :param rxns:
             %    Reaction indices for which net stoichiometric
             %    coefficients should be retrieved. Optional argument; if
-            %    specified, "species" must be specified as well.
+            %    specified, ``species`` must be specified as well.
             % :return:
-            %    A sparse matrix of all net stoichiometric coefficients.
+            %    Returns a sparse matrix of all net stoichiometric
+            %    coefficients if there are more than 1 species or reactions,
+            %    otherwise returns an integer.
+            %    The matrix elements ``nu(k, i)`` is the stoichiometric
+            %    coefficient of species k as a product in reaction i.
+            %    If ``species`` and ``rxns`` are specified, the matrix
+            %    will contain only entries for the specified species
+            %    and reactions. For example, ``kin.netStoichCoeffs(3,
+            %    [1, 3, 5, 7])`` returns a sparse matrix containing only the
+            %    coefficients for species 3 in reactions 1, 3, 5, and 7.
 
             if nargin == 1
-                n = kin.stoichProduct - kin.stoichReactant;
+                n = kin.productStoichCoeffs - kin.reactantStoichCoeffs;
             elseif nargin == 3
-                n = kin.stoichProduct(species, rxns) - ...
-                    kin.stoichReactant(species, rxns);
+                n = kin.productStoichCoeffs(species, rxns) - ...
+                    kin.reactantStoichCoeffs(species, rxns);
             else
                 error('stoichNet requires 1 or 3 arguments.');
             end
@@ -378,7 +431,7 @@ classdef Kinetics < handle
             % :return:
             %    True if reaction number i is reversible. false if irreversible.
 
-            n = boolean(ctFunc('kin_isReversible', kin.kinID, i));
+            n = boolean(ctFunc('kin_isReversible', kin.kinID, i - 1));
         end
 
         function wdot = get.netProdRates(kin)

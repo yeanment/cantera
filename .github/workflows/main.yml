@@ -65,7 +65,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        python-version: ['3.8', '3.10', '3.11']
+        python-version: ['3.8', '3.10', '3.11', '3.12']
         os: ['ubuntu-20.04', 'ubuntu-22.04']
       fail-fast: false
     env:
@@ -144,9 +144,9 @@ jobs:
         python3 -m pip install ruamel.yaml scons numpy cython pandas pytest pytest-github-actions-annotate-failures pint
     - name: Build Cantera
       run: python3 `which scons` build env_vars=all
-        CXX=clang++-12 CC=clang-12 f90_interface=n extra_lib_dirs=/usr/lib/llvm/lib
+        CXX=clang++-14 CC=clang-14 f90_interface=n extra_lib_dirs=/usr/lib/llvm/lib
         -j2 debug=n --debug=time hdf_libdir=$HDF5_LIBDIR hdf_include=$HDF5_INCLUDEDIR
-        warning_flags='-Wall -Werror -Wsuggest-override'
+        logging=debug warning_flags='-Wall -Werror -Wsuggest-override'
     - name: Test Cantera
       run:
         python3 `which scons` test show_long_tests=yes verbose_tests=yes --debug=time
@@ -157,7 +157,7 @@ jobs:
     timeout-minutes: 90
     strategy:
       matrix:
-        python-version: ['3.8', '3.10', '3.11']
+        python-version: ['3.8', '3.10', '3.11', '3.12']
       fail-fast: false
     env:
       PYTHON_CMD: "python${{ matrix.python-version }}"
@@ -189,7 +189,7 @@ jobs:
         brew link --force --overwrite python@${{ matrix.python-version }}
         brew install --display-times scons
     - name: Upgrade pip
-      run: $PYTHON_CMD -m pip install -U pip 'setuptools>=47.0.0,<48' wheel
+      run: $PYTHON_CMD -m pip install -U pip setuptools wheel
     - name: Install Python dependencies
       run: |
         $PYTHON_CMD -m pip install ruamel.yaml numpy cython pandas pytest pytest-github-actions-annotate-failures pint
@@ -317,36 +317,39 @@ jobs:
       - name: Install Apt dependencies
         run: |
           sudo apt update
-          sudo apt install libboost-dev doxygen graphviz texlive-bibtex-extra
+          sudo apt install libboost-dev doxygen graphviz texlive-bibtex-extra \
+            libblas-dev liblapack-dev libhdf5-dev libfmt-dev libsundials-dev
       - name: Upgrade pip
         run: python3 -m pip install -U pip setuptools wheel
       - name: Install Python dependencies
         run: |
-          python3 -m pip install ruamel.yaml scons numpy cython sphinx==5.1.1 \
-          sphinxcontrib-matlabdomain sphinxcontrib-doxylink pint \
-          pydata-sphinx-theme==0.13.3 sphinx-argparse
-      - name: Build Cantera with documentation
-        run: python3 `which scons` build -j2 doxygen_docs=y sphinx_docs=y debug=n optimize=n use_pch=n
+          python3 -m pip install ruamel.yaml scons numpy cython 'sphinx>=5.3.0' \
+            sphinxcontrib-matlabdomain sphinxcontrib-doxylink sphinxcontrib-bibtex \
+            pydata-sphinx-theme==0.14.1 sphinx-argparse sphinx_design myst-nb \
+            sphinx-copybutton matplotlib pandas scipy pint
+          python3 -m pip install "git+https://github.com/sphinx-gallery/sphinx-gallery.git@master"
+          python3 -m pip install "git+https://github.com/Cantera/sphinx-tags.git@main"
+      - name: Build Cantera
+        run: python3 `which scons` build -j2 debug=n optimize=y use_pch=n
+      - name: Build documentation
+        run: python3 `which scons` sphinx doxygen logging=debug
       - name: Ensure 'scons help' options work
         run: |
           python3 `which scons` help --options
           python3 `which scons` help --list-options
           python3 `which scons` help --option=prefix
-      - name: Parse configuration options from SConstruct as reST
-        run: |
-          python3 `which scons` help --restructured-text --dev --output=config-options-dev.rst
-          mkdir build/docs/scons
-          mv config-options-dev.rst build/docs/scons/
       - name: Create archive for docs output
         run: |
-          cd build
-          tar -czf docs.tar.gz docs
+          cd build/doc
+          tar --exclude="*.map" --exclude="*.md5" -czf docs.tar.gz html
+        if: failure() || success()
       - name: Store archive of docs output
         uses: actions/upload-artifact@v3
         with:
-          path: build/docs.tar.gz
+          path: build/doc/docs.tar.gz
           name: docs
-          retention-days: 2
+          retention-days: 14
+        if: failure() || success()
       # The known_hosts key is generated with `ssh-keygen -F cantera.org` from a
       # machine that has previously logged in to cantera.org and trusts
       # that it logged in to the right machine
@@ -361,12 +364,12 @@ jobs:
         env:
           RSYNC_USER: "ctdeploy"
           RSYNC_SERVER: "cantera.org"
-          RSYNC_DEST: "cantera/documentation/dev"
-          DOCS_OUTPUT_DIR: "./build/docs/"
+          RSYNC_DEST: "cantera/dev"
+          DOCS_OUTPUT_DIR: "./build/doc/html/"
         run: |
           rsync -avzP --checksum --exclude='*.map' --exclude='*.md5' \
-          --exclude='/doxygen/xml' --delete --delete-excluded \
-          "${DOCS_OUTPUT_DIR}" ${RSYNC_USER}@${RSYNC_SERVER}:${RSYNC_DEST}
+            --delete --delete-excluded --filter='P .htaccess' \
+            "${DOCS_OUTPUT_DIR}" ${RSYNC_USER}@${RSYNC_SERVER}:${RSYNC_DEST}
 
   run-examples:
     name: Run Python ${{ matrix.python-version }} examples on ${{ matrix.os }}
@@ -376,7 +379,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-20.04", "ubuntu-22.04"]
-        python-version: ['3.8', '3.10', '3.11']
+        python-version: ['3.8', '3.10', '3.11', '3.12']
       fail-fast: false
     env:
       HDF5_LIBDIR: /usr/lib/x86_64-linux-gnu/hdf5/serial
@@ -420,7 +423,7 @@ jobs:
           -exec sh -c 'for n; do echo "$n" | tee -a results.txt && python3 "$n" >> results.txt || exit 1; done' sh {} +
         env:
           # The ignore setting here is due to a new warning introduced in Matplotlib==3.6.0
-          PYTHONWARNINGS: "error,ignore:warn_name_set_on_empty_Forward::pyparsing"
+          PYTHONWARNINGS: "error,ignore:warn_name_set_on_empty_Forward::pyparsing,ignore:datetime.datetime.utcfromtimestamp:DeprecationWarning:"
           MPLBACKEND: Agg
       - name: Save the results file for inspection
         uses: actions/upload-artifact@v3
@@ -514,7 +517,7 @@ jobs:
       matrix:
         os: ["windows-2022"]
         vs-toolset: ["14.1", "14.3"]
-        python-version: ["3.8", "3.10", "3.11"]
+        python-version: ["3.8", "3.10", "3.11", "3.12"]
         include:
         - python-version: 3.8
           fmt-ver: 10
@@ -592,7 +595,7 @@ jobs:
     strategy:
       matrix:
         vs-toolset: ['14.2']
-        python-version: ["3.8", "3.10", "3.11"]
+        python-version: ["3.8", "3.10", "3.11", "3.12"]
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
@@ -716,6 +719,7 @@ jobs:
       with:
         platform: x64
         static: false
+        version: 12.2
     - name: Install Boost Headers
       if: steps.cache-boost.outputs.cache-hit != 'true'
       run: |

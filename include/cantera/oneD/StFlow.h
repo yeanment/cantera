@@ -26,9 +26,8 @@ enum offset
     , c_offset_V //! strain rate
     , c_offset_T //! temperature
     , c_offset_L //! (1/r)dP/dr
-    , c_offset_E //! electric poisson's equation
-    // , c_offset_Uo //! oxidizer axial velocity
-    , c_offset_Y //! mass fractions, additions after this can cause issues, add them before
+    , c_offset_E //! electric field equation
+    , c_offset_Y //! mass fractions
 };
 
 class Transport;
@@ -315,18 +314,6 @@ public:
     virtual bool doElectricField(size_t j) const;
 
     //! Turn radiation on / off.
-    /*!
-     * The simple radiation model used was established by Liu and Rogg
-     * @cite liu1991. This model considers the radiation of CO2 and H2O.
-     *
-     * This model uses the optically thin limit and the gray-gas approximation to
-     * simply calculate a volume specified heat flux out of the Planck absorption
-     * coefficients, the boundary emissivities and the temperature. Polynomial lines
-     * calculate the species Planck coefficients for H2O and CO2. The data for the
-     * lines are taken from the RADCAL program @cite RADCAL.
-     * The coefficients for the polynomials are taken from
-     * [TNF Workshop](https://tnfworkshop.org/radiation/) material.
-     */
     void enableRadiation(bool doRadiation) {
         m_do_radiation = doRadiation;
     }
@@ -401,20 +388,27 @@ public:
     }
 
     /**
-     *  Evaluate the residual function for axisymmetric stagnation flow. If
-     *  j == npos, the residual function is evaluated at all grid points.
-     *  Otherwise, the residual function is only evaluated at grid points
-     *  j-1, j, and j+1. This option is used to efficiently evaluate the
-     *  Jacobian numerically.
+     * Evaluate the residual functions for axisymmetric stagnation flow.
+     * If jGlobal == npos, the residual function is evaluated at all grid points.
+     * Otherwise, the residual function is only evaluated at grid points j-1, j,
+     * and j+1. This option is used to efficiently evaluate the Jacobian numerically.
+     *
+     * These residuals at all the boundary grid points are evaluated using a default
+     * boundary condition that may be modified by a boundary object that is attached
+     * to the domain. The boundary object connected will modify these equations by
+     * subtracting the boundary object's values for V, T, mdot, etc. As a result,
+     * these residual equations will force the solution variables to the values of
+     * the connected boundary object.
+     *
+     *  @param jGlobal  Global grid point at which to update the residual
+     *  @param[in] xGlobal  Global state vector
+     *  @param[out] rsdGlobal  Global residual vector
+     *  @param[out] diagGlobal  Global boolean mask indicating whether each solution
+     *      component has a time derivative (1) or not (0).
+     *  @param[in] rdt Reciprocal of the timestep (`rdt=0` implies steady-state.)
      */
-    void eval(size_t j, double* x, double* r, integer* mask, double rdt) override;
-
-    //! Evaluate all residual components at the right boundary.
-    virtual void evalRightBoundary(double* x, double* res, int* diag, double rdt);
-
-    //! Evaluate the residual corresponding to the continuity equation at all
-    //! interior grid points.
-    virtual void evalContinuity(size_t j, double* x, double* r, int* diag, double rdt);
+    void eval(size_t jGlobal, double* xGlobal, double* rsdGlobal,
+              integer* diagGlobal, double rdt) override;
 
     //! Index of the species on the left boundary with the largest mass fraction
     size_t leftExcessSpecies() const {
@@ -497,25 +491,165 @@ protected:
         return m_wdot(k,j);
     }
 
-    //! Write the net production rates at point `j` into array `m_wdot`
-    void getWdot(double* x, size_t j) {
-        setGas(x,j);
-        m_kin->getNetProductionRates(&m_wdot(0,j));
-    }
-
     //! Update the properties (thermo, transport, and diffusion flux).
     //! This function is called in eval after the points which need
     //! to be updated are defined.
     virtual void updateProperties(size_t jg, double* x, size_t jmin, size_t jmax);
 
-    //! Evaluate the residual function. This function is called in eval
-    //! after updateProperties is called.
-    virtual void evalResidual(double* x, double* rsd, int* diag,
+    /**
+     * Computes the radiative heat loss vector over points jmin to jmax and stores
+     * the data in the qdotRadiation variable.
+     *
+     * The simple radiation model used was established by Liu and Rogg
+     * @cite liu1991. This model considers the radiation of CO2 and H2O.
+     *
+     * This model uses the optically thin limit and the gray-gas approximation to
+     * simply calculate a volume specified heat flux out of the Planck absorption
+     * coefficients, the boundary emissivities and the temperature. Polynomial lines
+     * calculate the species Planck coefficients for H2O and CO2. The data for the
+     * lines are taken from the RADCAL program @cite RADCAL.
+     * The coefficients for the polynomials are taken from
+     * [TNF Workshop](https://tnfworkshop.org/radiation/) material.
+     */
+    void computeRadiation(double* x, size_t jmin, size_t jmax);
+
+    /**
+     * Evaluate the continuity equation residual.
+     *
+     * This function calculates the residual of the continuity equation
+     * @f[
+     *     \frac{d(\rho u)}{dz} + 2\rho V = 0
+     * @f]
+     *
+     * Axisymmetric flame:
+     *  The continuity equation propagates information from right-to-left.
+     *  The @f$ \rho u @f$ at point 0 is dependent on @f$ \rho u @f$ at point 1,
+     *  but not on @f$ \dot{m} @f$ from the inlet.
+     *
+     * Freely-propagating flame:
+     *  The continuity equation propagates information away from a fixed temperature
+     *  point that is set in the domain.
+     *
+     * Unstrained flame:
+     *  A specified mass flux; the main example being burner-stabilized flames.
+     *
+     * The default boundary condition for the continuity equation is
+     * (@f$ u = 0 @f$) at the left and right boundary.
+     *
+     * @param[in] x Local domain state vector, includes variables like temperature,
+     *               density, etc.
+     * @param[out] rsd Local domain residual vector that stores the continuity
+     *                  equation residuals.
+     * @param[out] diag Local domain diagonal matrix that controls whether an entry
+     *                   has a time-derivative (used by the solver).
+     * @param[in] rdt Reciprocal of the timestep.
+     * @param[in] jmin The index for the starting point in the local domain grid.
+     * @param[in] jmax The index for the ending point in the local domain grid.
+     */
+    virtual void evalContinuity(double* x, double* rsd, int* diag,
+                                double rdt, size_t jmin, size_t jmax);
+
+    /**
+     * Evaluate the momentum equation residual.
+     *
+     * The function calculates the radial momentum equation defined as
+     * @f[
+     *    \rho u \frac{dV}{dz} + \rho V^2 =
+     *    \frac{d}{dz}\left( \mu \frac{dV}{dz} \right) - \Lambda
+     * @f]
+     *
+     * The radial momentum equation is used for axisymmetric flows, and incorporates
+     * terms for time and spatial variations of radial velocity (@f$ V @f$). The
+     * default boundary condition is zero radial velocity (@f$ V @f$) at the left
+     * and right boundary.
+     *
+     * For argument explanation, see evalContinuity().
+     */
+    virtual void evalMomentum(double* x, double* rsd, int* diag,
                               double rdt, size_t jmin, size_t jmax);
+
+    /**
+     * Evaluate the lambda equation residual.
+     *
+     * The function calculates the lambda equation as
+     * @f[
+     *    \frac{d\Lambda}{dz} = 0
+     * @f]
+     *
+     * The lambda equation serves as an eigenvalue that allows the momentum
+     * equation and continuity equations to be simultaneously satisfied in
+     * axisymmetric flows. The lambda equation propagates information from
+     * left-to-right. The default boundary condition is @f$ \Lambda = 0 @f$
+     * at the left and zero flux at the right boundary.
+     *
+     * For argument explanation, see evalContinuity().
+     */
+    virtual void evalLambda(double* x, double* rsd, int* diag,
+                            double rdt, size_t jmin, size_t jmax);
+
+    /**
+     * Evaluate the energy equation residual.
+     *
+     * The function calculates the energy equation:
+     * @f[
+     *   \rho c_p u \frac{dT}{dz} =
+     *   \frac{d}{dz}\left( \lambda \frac{dT}{dz} \right)
+     *   - \sum_k h_kW_k\dot{\omega}_k
+     *   - \sum_k  j_k \frac{dh_k}{dz}
+     * @f]
+     *
+     * The energy equation includes contributions from
+     * chemical reactions and diffusion. Default is zero temperature (@f$ T @f$)
+     * at the left and right boundaries. These boundary values are updated by the
+     * specific boundary object connected to the domain.
+     *
+     * For argument explanation, see evalContinuity().
+     */
+    virtual void evalEnergy(double* x, double* rsd, int* diag,
+                            double rdt, size_t jmin, size_t jmax);
+
+    /**
+     * Evaluate the species equations' residuals.
+     *
+     * The function calculates the species equations as
+     * @f[
+     *    \rho u \frac{dY_k}{dz} + \frac{dj_k}{dz} = W_k\dot{\omega}_k
+     * @f]
+     *
+     * The species equations include terms for temporal and spatial variations
+     * of species mass fractions (@f$ Y_k @f$). The default boundary condition is zero
+     * flux for species at the left and right boundary.
+     *
+     * For argument explanation, see evalContinuity().
+     */
+    virtual void evalSpecies(double* x, double* rsd, int* diag,
+                             double rdt, size_t jmin, size_t jmax);
+
+    /**
+     * Evaluate the electric field equation residual to be zero everywhere.
+     *
+     * The electric field equation is implemented in the IonFlow class. The default
+     * boundary condition is zero electric field (@f$ E @f$) at the boundary,
+     * and @f$ E @f$ is zero within the domain.
+     *
+     * For argument explanation, see evalContinuity().
+     */
+    virtual void evalElectricField(double* x, double* rsd, int* diag,
+                                   double rdt, size_t jmin, size_t jmax);
 
     /**
      * Update the thermodynamic properties from point j0 to point j1
      * (inclusive), based on solution x.
+     *
+     * The gas state is set to be consistent with the solution at the
+     * points from j0 to j1.
+     *
+     * Properties that are computed and cached are:
+     * * #m_rho (density)
+     * * #m_wtm (mean molecular weight)
+     * * #m_cp (specific heat capacity)
+     * * #m_hk (species specific enthalpies)
+     * * #m_wdot (species production rates)
      */
     void updateThermo(const double* x, size_t j0, size_t j1) {
         for (size_t j = j0; j <= j1; j++) {
@@ -524,6 +658,7 @@ protected:
             m_wtm[j] = m_thermo->meanMolecularWeight();
             m_cp[j] = m_thermo->cp_mass();
             m_thermo->getPartialMolarEnthalpies(&m_hk(0, j));
+            m_kin->getNetProductionRates(&m_wdot(0, j));
         }
     }
 
@@ -646,6 +781,8 @@ protected:
     // transport properties
     vector<double> m_visc;
     vector<double> m_tcon;
+    //! Array of size #m_nsp by #m_points for saving density times diffusion
+    //! coefficient times species molar mass divided by mean molecular weight
     vector<double> m_diff;
     vector<double> m_multidiff;
     Array2D m_dthermal;

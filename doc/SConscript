@@ -1,6 +1,7 @@
 
 from collections import namedtuple
 from os.path import join as pjoin
+from pathlib import Path
 import os
 import subprocess
 from buildutils import *
@@ -96,31 +97,81 @@ def get_function_name(function_string):
     else:
         return sig
 
-if localenv['doxygen_docs']:
-    docs = build(localenv.Command('#build/docs/doxygen/html/index.html',
-                                  'doxygen/Doxyfile', 'doxygen $SOURCE'))
+if localenv['doxygen_docs'] or localenv['sphinx_docs']:
+    docs = build(localenv.Command(
+        '#build/doc/html/cxx/index.html', 'doxygen/Doxyfile',
+        [
+            Delete("build/doc/html/cxx"),
+            'doxygen $SOURCE',
+            Copy("build/doc/html/cxx", "build/doc/doxygen/html")
+        ]
+    ))
     env.Depends(docs, env.Glob('#doc/doxygen/*') +
                       multi_glob(env, '#include/cantera', 'h') +
                       multi_glob(env, '#include/cantera/*', 'h') +
                       multi_glob(env, '#src/cantera/*', 'h', 'cpp'))
 
     env.Alias('doxygen', docs)
-    install(localenv.RecursiveInstall, '$inst_docdir/doxygen/html',
-            '#/build/docs/doxygen/html', exclude=['\\.map', '\\.md5'])
 
 if localenv['sphinx_docs']:
+    localenv.PrependENVPath('PYTHONPATH', Dir('#build/python').abspath)
     def build_sphinx(target, source, env):
         cmd = [env['sphinx_cmd']] + env['sphinx_options'].split()
-        cmd += ('-b', 'html', '-d', 'build/docs/sphinx/doctrees', 'doc/sphinx',
-                'build/docs/sphinx/html')
+        if env['logging'] == 'debug':
+            cmd.append('-v')
+        cmd += ('-b', 'html', '-d', 'build/doc/sphinx/doctrees', 'build/doc/sphinx',
+                'build/doc/html')
         code = subprocess.call(cmd, env=env['ENV'])
         if code:
             raise Errors.BuildError(target, action=env['sphinx_cmd'])
 
-    sphinxdocs = build(localenv.Command('#build/doc/sphinx/html/index.html',
+    # RecursiveInstall knows to copy modified files, unlike Copy
+    copy_sphinx = localenv.RecursiveInstall("#build/doc/sphinx", "sphinx")
+    copy_python_samples = localenv.RecursiveInstall("#build/doc/samples/python",
+                                                    "#samples/python")
+    copy_matlab_ex_samples = localenv.RecursiveInstall(
+        "#build/doc/samples/matlab_experimental", "#samples/matlab_experimental")
+
+    sphinxdocs = build(localenv.Command('build/doc/sphinx/html/index.html',
         'sphinx/conf.py', build_sphinx))
     env.Alias('sphinx', sphinxdocs)
+    env.Depends(sphinxdocs, copy_sphinx)
+    env.Depends(sphinxdocs, [copy_python_samples, copy_matlab_ex_samples])
     env.Depends(sphinxdocs, env['python_module'])
+
+    # Gather all C++ samples into a single directory so they can be presented a single
+    # sub-gallery by sphinx-gallery
+    cxxfiles = (Glob("#samples/cxx/*/*.cpp") + Glob("#samples/cxx/*/*.h")
+                + Glob("#samples/cxx/*.rst"))
+    for cxxfile in cxxfiles:
+        env.Depends(sphinxdocs,
+                    localenv.Command(f"#build/doc/samples/cxx/{cxxfile.name}", cxxfile,
+                                     Copy("$TARGET", "$SOURCE")))
+
+    # Gather all Fortran (F77 and F90) samples into a single directory
+    fort_files = (Glob("#samples/f77/*.f") + Glob("#samples/f77/*.cpp")
+                  + Glob("#samples/f90/*.f90") + Glob("#samples/f90/README.rst"))
+    for fort_file in fort_files:
+        env.Depends(sphinxdocs,
+                    localenv.Command(f"#build/doc/samples/fortran/{fort_file.name}",
+                                     fort_file, Copy("$TARGET", "$SOURCE")))
+
+    # Gather clib sample files
+    clib_files = Glob("#samples/clib/*.c") + [File("#samples/clib/README.rst")]
+    for clib_file in clib_files:
+        env.Depends(sphinxdocs,
+                    localenv.Command(f"#build/doc/samples/clib/{clib_file.name}",
+                                     clib_file, Copy("$TARGET", "$SOURCE")))
+
+    # Generate documentation for SCons configuration options
+    def save_config(target, source, env):
+        Path(str(target[0])).parent.mkdir(parents=True, exist_ok=True)
+        with open(str(target[0]), "w") as outfile:
+            outfile.write(env["config"].to_rest())
+    scons_opts = localenv.Command(
+        "#build/doc/sphinx/develop/compiling/scons-config-options.rst.inc",
+        "#SConstruct", save_config)
+    env.Depends(sphinxdocs, scons_opts)
 
     # Create a list of MATLAB classes to document. This uses the NamedTuple
     # structure defined at the top of the file. The @Data and @Utilities
@@ -208,7 +259,7 @@ if localenv['sphinx_docs']:
         # every time the source is changed, we don't want to have to commit the
         # change in the rst file as well as the source - too much code churn. So
         # we use a template and a SubstFile directive.
-        c = tempenv.SubstFile('#doc/sphinx/matlab/%s.rst' % page.name,
+        c = tempenv.SubstFile('#build/doc/sphinx/matlab/%s.rst' % page.name,
                               '#doc/sphinx/matlab/matlab-template.rst.in')
         build(c)
         localenv.Depends(sphinxdocs, c)
@@ -216,5 +267,5 @@ if localenv['sphinx_docs']:
     localenv.AlwaysBuild(sphinxdocs)
     if localenv['doxygen_docs']:
         localenv.Depends(sphinxdocs, docs)
-    install(localenv.RecursiveInstall, '$inst_docdir/sphinx/html',
-            '#/build/docs/sphinx/html')
+    install(localenv.RecursiveInstall, '$inst_docdir/html',
+            '#build/doc/html', exclude=['\\.map', '\\.md5'])

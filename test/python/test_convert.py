@@ -31,7 +31,7 @@ class ck2yamlTest(utilities.CanteraTest):
         # In Python >= 3.8, this can be replaced by the missing_ok argument
         if output.is_file():
             output.unlink()
-        ck2yaml.convert_mech(inputFile, thermo_file=thermo,
+        ck2yaml.convert(inputFile, thermo_file=thermo,
             transport_file=transport, surface_file=surface, out_name=output,
             extra_file=extra, quiet=True, **kwargs)
         return output
@@ -440,6 +440,18 @@ class ck2yamlTest(utilities.CanteraTest):
         self.assertEqual(covdeps["OH_Pt"]["m"], 1.0)
         self.assertNear(covdeps["H_Pt"]["E"], -6e6)
 
+    def test_surface_mech3(self):
+        # This tests the case where the thermo data for both the gas and surface are
+        # combined in a file separate from the gas and surface definitions.
+
+        output = self.convert('surface2-gas.inp', thermo='surface2-thermo.dat',
+                              surface='surface2.inp', output='surface2')
+        surf = ct.Interface(output, 'PT_SURFACE')
+
+        assert surf.n_species == 6
+        assert surf.n_reactions ==  15
+        assert surf.reaction(4).duplicate is True
+
     def test_third_body_plus_falloff_reactions(self):
         output = self.convert("third_body_plus_falloff_reaction.inp")
         gas = ct.Solution(output)
@@ -591,7 +603,7 @@ class yaml2ckTest(utilities.CanteraTest):
             mech, thermo, transport = self._convert_to_ck(input_file, phase_name)
 
         output = self.test_work_path / (Path(input_file).stem + self.ext)
-        ck2yaml.convert_mech(
+        ck2yaml.convert(
             mech,
             thermo_file=thermo,
             transport_file=transport,
@@ -756,6 +768,48 @@ class yaml2ckTest(utilities.CanteraTest):
         self.check_thermo(ck_phase, yaml_phase, [300, 500, 1300, 2000])
         self.check_kinetics(ck_phase, yaml_phase, [900, 1800], [2e5, 20e5], tol=2e-7)
         self.check_transport(ck_phase, yaml_phase, [298, 1001, 2400])
+
+    def test_write_chemkin(self):
+        # test alternative converter
+        yaml_phase = ct.Solution('h2o2.yaml')
+        ck_file = self.test_work_path / 'test.ck'
+        ck_file.unlink(missing_ok=True)
+        yaml_phase.write_chemkin(ck_file, quiet=True)
+        yaml_phase.write_chemkin(
+            ck_file, sort_species='alphabetical', overwrite=True, quiet=True)
+        assert ck_file.exists()
+
+        yaml_file = self.test_work_path / 'test.yaml'
+        yaml_file.unlink(missing_ok=True)
+        ck2yaml.convert(ck_file, out_name=yaml_file, quiet=True)
+        assert yaml_file.exists()
+        ck_phase = ct.Solution(yaml_file)
+
+        X = {'O2': 0.3, 'H': 0.1, 'H2': 0.2, 'AR': 0.4}
+        ck_phase.X = X
+        yaml_phase.X = X
+        self.check_thermo(ck_phase, yaml_phase, [300, 500, 1300, 2000])
+        self.check_kinetics(ck_phase, yaml_phase, [900, 1800], [2e5, 20e5], tol=2e-7)
+        self.check_transport(ck_phase, yaml_phase, [298, 1001, 2400])
+
+    def test_write_notes(self):
+        input_file = self.test_data_path / 'species-names.yaml'
+        yaml_phase = ct.Solution(input_file)
+        assert yaml_phase.species("eq=uals").input_data["thermo"]["note"] == 120521
+        assert yaml_phase.species("plus").input_data["thermo"]["note"] == 12.05
+
+        ck_file = self.test_work_path / 'species-names.ck'
+        ck_file.unlink(missing_ok=True)
+        yaml_phase.write_chemkin(ck_file, quiet=True)
+
+        yaml_file = self.test_work_path / 'species-names.yaml'
+        yaml_file.unlink(missing_ok=True)
+        ck2yaml.convert(ck_file, out_name=yaml_file, quiet=True)
+        assert yaml_file.exists()
+
+        ck_phase = ct.Solution(yaml_file)
+        assert ck_phase.species("eq=uals").input_data["thermo"]["note"] == "120521"
+        assert ck_phase.species("plus").input_data["thermo"]["note"] == "12.05"
 
 
 class cti2yamlTest(utilities.CanteraTest):

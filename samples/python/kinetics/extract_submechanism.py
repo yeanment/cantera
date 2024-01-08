@@ -1,4 +1,7 @@
 """
+Extracting a sub-mechanism
+==========================
+
 An example demonstrating how to use Species and Reaction objects to
 programmatically extract a reaction submechanism. In this example, the CO/H2
 oxidation reactions are extracted from the GRI 3.0 mechanism.
@@ -8,7 +11,8 @@ mechanism and the submechanism, which demonstrates that the submechanism
 contains all of the important species and reactions.
 
 Requires: cantera >= 2.6.0, matplotlib >= 2.0
-Keywords: kinetics, combustion, 1D flow, editing mechanisms, plotting
+
+.. tags:: Python, kinetics, combustion, 1D flow, editing mechanisms, plotting
 """
 
 from timeit import default_timer

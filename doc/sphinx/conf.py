@@ -13,11 +13,12 @@
 
 import sys, os, re
 from pathlib import Path
+from sphinx_gallery.sorting import ExplicitOrder
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../../build/python'))
+sys.path.insert(0, os.path.abspath('../../python'))
 
 sys.path.append(os.path.abspath('.'))
 sys.path.append(os.path.abspath('./exts'))
@@ -41,14 +42,138 @@ extensions = [
               'sphinx.ext.autosummary',
               'sphinxarg.ext',
               'sphinxcontrib.doxylink',
+              'sphinxcontrib.bibtex',
               'sphinx.ext.intersphinx',
+              'myst_nb',
+              'sphinx_gallery.gen_gallery',
+              'sphinx_tags',
+              'sphinx_design',
+              'sphinx_copybutton',
               ]
+
+sphinx_gallery_conf = {
+    'filename_pattern': '\.py',
+    'example_extensions': {'.py', '.cpp', '.h', '.c', '.f', '.f90', '.m'},
+    "filetype_parsers": {'.h': 'C++', '.m': 'Matlab'},
+    'ignore_pattern': r'(__.*__\.py|test_examples\.m)',
+    'image_srcset': ["2x"],
+    'examples_dirs': [
+       '../samples/python/',
+       '../samples/cxx/',
+       '../samples/clib/',
+       '../samples/fortran/',
+       '../samples/matlab_experimental/',
+    ],
+    'gallery_dirs': [
+       'examples/python',
+       'examples/cxx',
+       'examples/clib',
+       'examples/fortran',
+       'examples/matlab_experimental',
+    ],
+    'subsection_order': ExplicitOrder([
+        '../samples/python/thermo',
+        '../samples/python/kinetics',
+        '../samples/python/transport',
+        '../samples/python/reactors',
+        '../samples/python/onedim',
+        '../samples/python/surface_chemistry',
+        '../samples/python/multiphase',
+    ]),
+    'reference_url': {
+        'cantera': None,  # 'None' means the locally-documented module
+    }
+}
+
+# Override sphinx-gallery's method for determining which examples should be executed.
+# There's really no way to achieve this with the `filename_pattern` option, and
+# `ignore_pattern` excludes the example entirely.
+skip_run = {
+    # multiprocessing can't see functions defined in __main__ when run by
+    # sphinx-gallery, at least on macOS.
+    "multiprocessing_viscosity.py",
+}
+
+def executable_script(src_file, gallery_conf):
+    """Validate if script has to be run according to gallery configuration.
+
+    Parameters
+    ----------
+    src_file : str
+        path to python script
+
+    gallery_conf : dict
+        Contains the configuration of Sphinx-Gallery
+
+    Returns
+    -------
+    bool
+        True if script has to be executed
+    """
+    filename = Path(src_file).name
+    if filename in skip_run:
+        return False
+    filename_pattern = gallery_conf["filename_pattern"]
+    execute = re.search(filename_pattern, src_file) and gallery_conf["plot_gallery"]
+    return execute
+
+import sphinx_gallery.gen_rst
+sphinx_gallery.gen_rst.executable_script = executable_script
+
+header_prefix = """
+:html_theme.sidebar_secondary.remove:
+
+.. py:currentmodule:: cantera
+
+"""
+
+sphinx_gallery.gen_rst.EXAMPLE_HEADER = header_prefix + sphinx_gallery.gen_rst.EXAMPLE_HEADER
+
+# Provide options to examples that only generate plots if an option is specified
+class ResetArgv:
+    wants_plot = {
+        "adiabatic.py",
+        "premixed_counterflow_twin_flame.py",
+        "piston.py",
+        "reactor1.py",
+        "reactor2.py",
+        "sensitivity1.py",
+    }
+    def __repr__(self):
+        return 'ResetArgv'
+
+    def __call__(self, sphinx_gallery_conf, script_vars):
+        if Path(script_vars['src_file']).name in self.wants_plot:
+            return ['--plot']
+        else:
+            return []
+
+sphinx_gallery_conf["reset_argv"] = ResetArgv()
+
+# Options for sphinx_tags extension
+tags_create_tags = True
+tags_create_badges = True
+tags_overview_title = "Index of example tags"
+tags_page_title = "Tag"
+tags_page_header = "Examples with this tag:"
+tags_badge_colors = {
+    "Python": "secondary",
+    "C++": "secondary",
+    "C": "secondary",
+    "Matlab": "secondary",
+    "Fortran 77": "secondary",
+    "Fortran 90": "secondary",
+}
 
 autodoc_default_options = {
     'members': True,
     'show-inheritance': True,
     'undoc-members': True,
 }
+
+bibtex_bibfiles = ["../../../doc/doxygen/cantera.bib"]
+bibtex_reference_style = 'author_year'
+bibtex_default_style = 'alpha'
 
 
 def setup(app):
@@ -87,8 +212,8 @@ def setup(app):
 autoclass_content = 'both'
 
 doxylink = {
-    'ct': (os.path.abspath('../../build/docs/Cantera.tag'),
-            '../../doxygen/html/')
+    'ct': (os.path.abspath('../Cantera.tag'),
+           'cxx/')
 }
 
 intersphinx_mapping = {
@@ -98,6 +223,8 @@ intersphinx_mapping = {
     'pint': ('https://pint.readthedocs.io/en/stable/', None),
 }
 
+myst_enable_extensions = ["dollarmath", "amsmath", "deflist", "colon_fence"]
+
 # Ensure that the primary domain is the Python domain, since we've added the
 # MATLAB domain with sphinxcontrib.matlab
 primary_domain = 'py'
@@ -106,7 +233,10 @@ primary_domain = 'py'
 templates_path = ['_templates']
 
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'myst-nb',
+}
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
@@ -122,7 +252,7 @@ copyright = "2001-2023, Cantera Developers"
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-configh = Path('../../include/cantera/base/config.h').read_text()
+configh = Path('../../../include/cantera/base/config.h').read_text()
 # The short X.Y version.
 version = re.search('CANTERA_SHORT_VERSION "(.*?)"', configh).group(1)
 # The full version, including alpha/beta/rc tags.
@@ -140,7 +270,13 @@ release = re.search('CANTERA_VERSION "(.*?)"', configh).group(1)
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = []
+exclude_patterns = [
+    # Prevent MyST-nb from trying to read files generated by sphinx-gallery
+    # See https://github.com/executablebooks/MyST-NB/issues/363
+    "examples/python/**/*.py.md5",
+    "examples/python/**/*.ipynb",
+    "examples/python/**/*.py",
+]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 default_role = 'py:obj'
@@ -175,15 +311,21 @@ html_theme = 'pydata_sphinx_theme'
 
 html_theme_options = {
     "show_toc_level": 2,
-    "navbar_center": ["cantera-org-links"],
+    "navbar_center": ["navbar-nav"],
+    "external_links": [
+      {"name": "Community", "url": "/community.html"},
+    ],
+    "header_links_before_dropdown": 6,
+    "navbar_align": "left",
     "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
+    "show_prev_next": False,
     "logo": {
         "link": "/index.html",
         "alt_text": "Cantera",
     },
     "primary_sidebar_end": ["numfocus"],
     "switcher": {
-        "json_url": "/documentation/dev/sphinx/html/_static/doc-versions.json",
+        "json_url": "/dev/_static/doc-versions.json",
         # "json_url": "https://cantera.org/doc-versions.json",
         "version_match": version,
     },
@@ -213,9 +355,8 @@ html_short_title = "Cantera"
 html_logo = '_static/images/cantera-logo.png'
 
 # The name of an image file (within the static path) to use as favicon of the
-# docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
-# pixels large.
-# html_favicon = "_static/favicon.ico"
+# docs.  This file should be square image.
+html_favicon = "_static/images/favicon.png"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

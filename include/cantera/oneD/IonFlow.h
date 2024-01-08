@@ -67,12 +67,44 @@ public:
                               vector<double>& mobi_e);
 
 protected:
-    /*!
-     * This function overloads the original function. The residual function
-     * of electric field is added.
+
+    /**
+     * Evaluate the electric field equation residual by Gauss's law.
+     *
+     * The function calculates the electric field equation as:
+     * @f[
+     *    \frac{dE}{dz} = \frac{e}{\varepsilon_0} \sum (q_k \cdot n_k)
+     * @f]
+     *
+     * and
+     *
+     * @f[
+     *    E = -\frac{dV}{dz}
+     * @f]
+     *
+     * The electric field equation is based on Gauss's law,
+     * accounting for charge density and permittivity of free space
+     * (@f$ \varepsilon_0 @f$).
+     * The zero electric field is first evaluated and if the solution state is 2,
+     * then the alternative form the electric field equation is evaluated.
+     *
+     * For argument explanation, see evalContinuity() base class.
      */
-    void evalResidual(double* x, double* rsd, int* diag,
-                      double rdt, size_t jmin, size_t jmax) override;
+    void evalElectricField(double* x, double* rsd, int* diag,
+                           double rdt, size_t jmin, size_t jmax) override;
+
+    /**
+     * Evaluate the species equations' residual. This function overloads the
+     * original species function.
+     *
+     * A Neumann boundary for the charged species at the
+     * left boundary is added, and the default boundary condition from the overloaded
+     * method is left the same for the right boundary.
+     *
+     * For argument explanation, see evalContinuity() base class.
+     */
+    void evalSpecies(double* x, double* rsd, int* diag,
+                     double rdt, size_t jmin, size_t jmax) override;
     void updateTransport(double* x, size_t j0, size_t j1) override;
     void updateDiffFluxes(const double* x, size_t j0, size_t j1) override;
     //! Solving phase one: the fluxes of charged species are turned off

@@ -107,7 +107,9 @@ void IonFlow::updateTransport(double* x, size_t j0, size_t j1)
             size_t k = m_kElectron;
             double tlog = log(m_thermo->temperature());
             m_mobility[k+m_nsp*j] = poly5(tlog, m_mobi_e_fix.data());
-            m_diff[k+m_nsp*j] = poly5(tlog, m_diff_e_fix.data());
+            double rho = m_thermo->density();
+            double wtm = m_thermo->meanMolecularWeight();
+            m_diff[k+m_nsp*j] = m_wt[k]*rho*poly5(tlog, m_diff_e_fix.data())/wtm;
         }
     }
 }
@@ -125,12 +127,10 @@ void IonFlow::updateDiffFluxes(const double* x, size_t j0, size_t j1)
 void IonFlow::frozenIonMethod(const double* x, size_t j0, size_t j1)
 {
     for (size_t j = j0; j < j1; j++) {
-        double wtm = m_wtm[j];
-        double rho = density(j);
         double dz = z(j+1) - z(j);
         double sum = 0.0;
         for (size_t k : m_kNeutral) {
-            m_flux(k,j) = m_wt[k]*(rho*m_diff[k+m_nsp*j]/wtm);
+            m_flux(k,j) = m_diff[k+m_nsp*j];
             m_flux(k,j) *= (X(x,k,j) - X(x,k,j+1))/dz;
             sum -= m_flux(k,j);
         }
@@ -152,13 +152,12 @@ void IonFlow::frozenIonMethod(const double* x, size_t j0, size_t j1)
 void IonFlow::electricFieldMethod(const double* x, size_t j0, size_t j1)
 {
     for (size_t j = j0; j < j1; j++) {
-        double wtm = m_wtm[j];
         double rho = density(j);
         double dz = z(j+1) - z(j);
 
         // mixture-average diffusion
         for (size_t k = 0; k < m_nsp; k++) {
-            m_flux(k,j) = m_wt[k]*(rho*m_diff[k+m_nsp*j]/wtm);
+            m_flux(k,j) = m_diff[k+m_nsp*j];
             m_flux(k,j) *= (X(x,k,j) - X(x,k,j+1))/dz;
         }
 
@@ -199,37 +198,46 @@ void IonFlow::setSolvingStage(const size_t stage)
     }
 }
 
-void IonFlow::evalResidual(double* x, double* rsd, int* diag,
-                           double rdt, size_t jmin, size_t jmax)
+//! Evaluate the electric field equation residual
+void IonFlow::evalElectricField(double* x, double* rsd, int* diag,
+                                double rdt, size_t jmin, size_t jmax)
 {
-    StFlow::evalResidual(x, rsd, diag, rdt, jmin, jmax);
+    StFlow::evalElectricField(x, rsd, diag, rdt, jmin, jmax);
     if (m_stage != 2) {
         return;
     }
 
-    for (size_t j = jmin; j <= jmax; j++) {
-        if (j == 0) {
-            // enforcing the flux for charged species is difficult
-            // since charged species are also affected by electric
-            // force, so Neumann boundary condition is used.
-            for (size_t k : m_kCharge) {
-                rsd[index(c_offset_Y + k, 0)] = Y(x,k,0) - Y(x,k,1);
-            }
-            rsd[index(c_offset_E, j)] = E(x,0);
-            diag[index(c_offset_E, j)] = 0;
-        } else if (j == m_points - 1) {
-            rsd[index(c_offset_E, j)] = dEdz(x,j) - rho_e(x,j) / epsilon_0;
-            diag[index(c_offset_E, j)] = 0;
-        } else {
-            //-----------------------------------------------
-            //    Electric field by Gauss's law
-            //
-            //    dE/dz = e/eps_0 * sum(q_k*n_k)
-            //
-            //    E = -dV/dz
-            //-----------------------------------------------
-            rsd[index(c_offset_E, j)] = dEdz(x,j) - rho_e(x,j) / epsilon_0;
-            diag[index(c_offset_E, j)] = 0;
+    if (jmin == 0) { // left boundary
+        rsd[index(c_offset_E, jmin)] = E(x,jmin);
+    }
+
+    if (jmax == m_points - 1) { // right boundary
+        rsd[index(c_offset_E, jmax)] = dEdz(x,jmax) - rho_e(x,jmax) / epsilon_0;
+    }
+
+    // j0 and j1 are constrained to only interior points
+    size_t j0 = std::max<size_t>(jmin, 1);
+    size_t j1 = std::min(jmax, m_points - 2);
+    for (size_t j = j0; j <= j1; j++) {
+        rsd[index(c_offset_E, j)] = dEdz(x,j) - rho_e(x,j) / epsilon_0;
+        diag[index(c_offset_E, j)] = 0;
+    }
+}
+
+void IonFlow::evalSpecies(double* x, double* rsd, int* diag,
+                          double rdt, size_t jmin, size_t jmax)
+{
+    StFlow::evalSpecies(x, rsd, diag, rdt, jmin, jmax);
+    if (m_stage != 2) {
+        return;
+    }
+
+    if (jmin == 0) { // left boundary
+        // enforcing the flux for charged species is difficult
+        // since charged species are also affected by electric
+        // force, so Neumann boundary condition is used.
+        for (size_t k : m_kCharge) {
+            rsd[index(c_offset_Y + k, jmin)] = Y(x,k,jmin) - Y(x,k,jmin + 1);
         }
     }
 }

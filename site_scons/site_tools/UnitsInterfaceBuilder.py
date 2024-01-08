@@ -188,6 +188,13 @@ def UnitsInterfaceBuilder(env, target, source):
             else:
                 setattr(self._phase, name, value)
 
+        @copy_doc
+        def report(self, *args, **kwargs):
+            return self._phase.report(*args, **kwargs)
+
+        def __call__(self, *args, **kwargs):
+            print(self.report(*args, **kwargs))
+
         @property
         def basis_units(self):
             \"\"\"The units associated with the mass/molar basis of this phase.\"\"\"

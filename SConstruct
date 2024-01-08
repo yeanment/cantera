@@ -866,8 +866,10 @@ elif "clang" in env.subst("$CC"):
     config.select("clang")
 
 else:
-    logger.error(f"Unrecognized C compiler {env['CC']!r}")
-    sys.exit(1)
+    # Assume a GCC compatible compiler if nothing else
+    logger.warning(f"Unrecognized C compiler {env['CC']!r}")
+    config.select("gcc")
+
 
 if env["OS"] == "Windows":
     config.select("Windows")
@@ -934,6 +936,11 @@ for arg in ARGUMENTS:
     if arg not in config:
         logger.error(f"Encountered unexpected command line option: {arg!r}")
         sys.exit(1)
+
+# Store full config for doc build
+if env['sphinx_docs']:
+    config.add(windows_options)
+    env['config'] = config
 
 env["cantera_version"] = "3.1.0a1"
 # For use where pre-release tags are not permitted (MSI, sonames)
@@ -1713,7 +1720,7 @@ env['python_cmd_esc'] = quoted(env['python_cmd'])
 # Python Package Settings
 python_min_version = parse_version("3.8")
 # Newest Python version not supported/tested by Cantera
-python_max_p1_version = parse_version("3.12")
+python_max_p1_version = parse_version("3.13")
 # The string is used to set python_requires in setup.cfg.in
 env["py_requires_ver_str"] = f">={python_min_version}"
 if env["python_sdist"] or env["package_build"]:

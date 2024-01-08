@@ -1,5 +1,6 @@
 """
-Viewing a reaction path diagram.
+Viewing a reaction path diagram
+===============================
 
 This script uses Graphviz to generate an image. You must have Graphviz installed
 and the program 'dot' must be on your path for this example to work.
@@ -7,7 +8,8 @@ Graphviz can be obtained from https://www.graphviz.org/ or (possibly) installed
 using your operating system's package manager.
 
 Requires: cantera >= 2.5.0
-Keywords: kinetics, reaction path analysis, pollutant formation
+
+.. tags:: Python, kinetics, reaction path analysis, pollutant formation
 """
 
 from subprocess import run
