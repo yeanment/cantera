@@ -223,7 +223,22 @@ intersphinx_mapping = {
     'pint': ('https://pint.readthedocs.io/en/stable/', None),
 }
 
-myst_enable_extensions = ["dollarmath", "amsmath", "deflist", "colon_fence"]
+myst_enable_extensions = [
+    "dollarmath",
+    "amsmath",
+    "deflist",
+    "colon_fence",
+    "attrs_block",
+]
+
+mathjax3_config = {
+    'tex': {
+        'macros': {
+            't': ['\\mathrm{#1}', 1],
+            'pxpy': ['\\frac{\\partial #1}{\\partial #2}', 2]
+        }
+    }
+}
 
 # Ensure that the primary domain is the Python domain, since we've added the
 # MATLAB domain with sphinxcontrib.matlab
@@ -246,7 +261,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Cantera'
-copyright = "2001-2023, Cantera Developers"
+copyright = "2001-2024, Cantera Developers"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

@@ -224,10 +224,26 @@ cdef class ReactorBase:
     cdef list _walls
     cdef list _surfaces
     cdef object _weakref_proxy
+    cdef public dict node_attr
+    """
+    A dictionary containing draw attributes for the representation of the reactor as a
+    graphviz node. See https://graphviz.org/docs/nodes/ for a list of all usable
+    attributes.
+
+    .. versionadded:: 3.1
+    """
 
 cdef class Reactor(ReactorBase):
     cdef CxxReactor* reactor
     cdef object _kinetics
+    cdef public str group_name
+    """
+    Optional name of a grouping of reactors that will be drawn as a cluster in the
+    graphical representation using graphviz. See
+    https://graphviz.org/Gallery/directed/cluster.html.
+
+    .. versionadded:: 3.1
+    """
 
 cdef class MoleReactor(Reactor):
     pass
@@ -257,6 +273,15 @@ cdef class ExtensibleReactor(Reactor):
 cdef class ReactorSurface:
     cdef CxxReactorSurface* surface
     cdef Kinetics _kinetics
+    cdef ReactorBase _reactor
+    cdef public dict node_attr
+    """
+    A dictionary containing draw attributes for the representation of the reactor
+    surface as a graphviz node. See https://graphviz.org/docs/nodes/ for a list of all
+    usable attributes.
+
+    .. versionadded:: 3.1
+    """
 
 cdef class WallBase:
     cdef shared_ptr[CxxWallBase] _wall
@@ -266,6 +291,14 @@ cdef class WallBase:
     cdef ReactorBase _left_reactor
     cdef ReactorBase _right_reactor
     cdef str name
+    cdef public dict edge_attr
+    """
+    A dictionary containing draw attributes for the representation of the `WallBase` as
+    a graphviz edge.See https://graphviz.org/docs/edges/ for a list of all usable
+    attributes.
+
+    .. versionadded:: 3.1
+    """
 
 cdef class Wall(WallBase):
     pass
@@ -278,6 +311,14 @@ cdef class FlowDevice:
     cdef str name
     cdef ReactorBase _upstream
     cdef ReactorBase _downstream
+    cdef public dict edge_attr
+    """
+    A dictionary containing draw attributes for the representation of the `FlowDevice`
+    as a graphviz edge.See https://graphviz.org/docs/edges/ for a list of all usable
+    attributes.
+
+    .. versionadded:: 3.1
+    """
 
 cdef class MassFlowController(FlowDevice):
     pass

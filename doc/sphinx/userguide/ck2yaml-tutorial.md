@@ -1,8 +1,8 @@
 # Converting Chemkin Format Files
 
-Many existing reaction mechanism files are in **CK format**, by which we mean the input
-file format developed for use with the Chemkin-II software package (and subsequent
-releases) as specified in the report describing the Chemkin software
+Many existing reaction mechanism files are in **{term}`CK` format**, by which we mean
+the input file format developed for use with the Chemkin-II software package (and
+subsequent releases) as specified in the report describing the Chemkin software
 {cite:p}`kee1989`. Cantera comes with a converter utility program `ck2yaml` (or
 `ck2yaml.py`) that converts CK format into Cantera's YAML format. If you want to convert
 a Chemkin-format file to YAML format, or you're having errors when you try to do so,
@@ -195,10 +195,9 @@ Column 79 is blank; and finally, the row is ended in column 80 with the integer 
 
 #### Lines 2--4
 
-% TODO: Link to NASA polynomials section in Science docs
-
 The next three lines of the thermodynamic entry have a similar format. They contain the
-coefficients of the 7-coefficient polynomial formulation in two temperature regions.
+coefficients of the [7-coefficient polynomial formulation](sec-thermo-nasa7) in two
+temperature regions.
 
 The second row of the thermo entry (the first after the information row) contains the
 first five coefficients that apply to the temperature range between the midpoint and the

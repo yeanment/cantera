@@ -422,8 +422,12 @@ case the species is composed of nothing, and represents an empty surface site. T
 also be done to represent vacancies in solids. A charged vacancy can be defined to be
 composed solely of electrons.
 
-The number of atoms of an element must be non-negative, except for the special "element"
-`E` that represents an electron.
+The special pseudo-element `E` is used in representing charged species, where it
+specifies the net number of electrons compared to the number needed to form a neutral
+species. That is, negatively charged ions will have `E` > 0, while positively charged
+ions will have `E` \< 0.
+
+The number of atoms of an element must be non-negative, except for electrons.
 
 Examples:
 
@@ -558,10 +562,10 @@ it is usually best not to specify units for $A$, in which case they will be comp
 taking all of these factors into account.
 
 ```{note}
-If $b \ne 0$, then the term $T^b$ should have units of $\mathrm{K}^b$, which would
+If $b \ne 0$, then the term $T^b$ should have units of $\t{K}^b$, which would
 change the units of $A$. This is not done, however, so the units associated with $A$
 are really the units for $k_f$. One way to formally express this is to replace $T^b$
-by the non-dimensional quantity $[T/(1\;\mathrm{K})]^b$.
+by the non-dimensional quantity $[T/(1\;\t{K})]^b$.
 ```
 
 The key `E` is used to specify $E_a$.
@@ -607,13 +611,13 @@ negative-A: true
 Explicit reaction orders different from the stoichiometric coefficients are sometimes
 used for non-elementary reactions. For example, consider the global reaction:
 
-$$  \mathrm{C_8H_{18} + 12.5 O_2 \rightarrow 8 CO_2 + 9 H_2O}  $$
+$$  \t{C_8H_{18} + 12.5 O_2 \rightarrow 8 CO_2 + 9 H_2O}  $$
 
 the forward rate constant might be given as {cite:p}`westbrook1981`:
 
 $$
-k_f = 4.6 \times 10^{11} [\mathrm{C_8H_{18}}]^{0.25} [\mathrm{O_2}]^{1.5}
-      \exp\left(\frac{30.0\,\mathrm{kcal/mol}}{RT}\right)
+k_f = 4.6 \times 10^{11} [\t{C_8H_{18}}]^{0.25} [\t{O_2}]^{1.5}
+      \exp\left(\frac{30.0\,\t{kcal/mol}}{RT}\right)
 $$
 
 This reaction could be defined as:
@@ -659,9 +663,12 @@ case, the `nonreactant-orders` field must be added to the reaction entry:
 (sec-yaml-guide-elements)=
 ## Elements
 
-Cantera provides built-in definitions for the chemical elements, including values for
-their atomic weights taken from IUPAC / CIAAW. These elements can be used by specifying
-the corresponding atomic symbols when specifying the composition of species.
+In Cantera, an *element* may refer to a chemical element or an isotope. Cantera provides
+<a href="../cxx/de/dfb/Elements_8cpp_source.html">built-in definitions</a> for the
+chemical elements, including values for their atomic weights taken from
+[IUPAC / CIAAW](http://www.ciaaw.org/atomic-weights.htm). These elements can be used by
+specifying the corresponding atomic symbols when specifying the composition of species.
+Explicit element definitions are usually only needed for isotopes.
 
 In order to give a name to a particular isotope or a virtual element representing a
 surface site, a custom `element` entry can be used. The default location for `element`
