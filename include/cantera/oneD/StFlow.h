@@ -189,7 +189,8 @@ public:
     //! The current mass flow rate in previous estimation
     double arcLengthContMdotPrev() const {
         if (m_arcLengthCont && (m_lnmdotPrev != Undef)) {
-            return std::exp(m_lnmdotPrev);
+            // return std::exp(m_lnmdotPrev);
+            return m_lnmdotPrev;
         }
     }
 
@@ -232,7 +233,8 @@ public:
     void setArcLengthContPrev(double tMax, double mdot) {
         if (m_arcLengthCont) {
             m_tMaxPrev = tMax;
-            m_lnmdotPrev = std::log(mdot);
+            // m_lnmdotPrev = std::log(mdot);
+            m_lnmdotPrev = mdot;
         }
     }
 
@@ -326,6 +328,9 @@ public:
     //! Return radiative heat loss at grid point j
     double radiativeHeatLoss(size_t j) const {
         return m_qdotRadiation[j];
+    }
+    const vector<double>& radiativeHeatLoss() {
+        return m_qdotRadiation;
     }
 
     //! Set the emissivities for the boundary values

@@ -207,9 +207,11 @@ void Inlet1D::eval(size_t jg, double* xg, double* rg,
             } 
             else if (m_flow->arcLengthContEnabled()) {
                 // Connect the dummy equation with current equation
-                m_mdot = std::exp(xb[c_offset_E]);
+                m_mdot = xb[c_offset_E];
                 // m_mdot = m_flow->density(0)*xb[c_offset_U];
-                rb[c_offset_L] += m_mdot;
+                // xb[c_offset_E] -= m_mdot; // 1. bdy for deltas
+                rb[c_offset_L] += m_mdot; // 2. bdy for U
+                m_mdot = m_flow->density(0)*xb[c_offset_U];
                 // Modify dummy equation in c_offsel_L
                 // rb[c_offset_E] += std::log(m_mdot);
             }

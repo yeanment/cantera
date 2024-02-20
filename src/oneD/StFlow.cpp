@@ -507,13 +507,11 @@ void StFlow::evalLambda(double* x, double* rsd, int* diag,
         rsd[index(c_offset_L, jmin)] = -rho_u(x, jmin);
         if (m_onePointControl) {
             // Release the initial boundary conditions here
-            rsd[index(c_offset_L, jmin)] = - lambda(x, jmin+1);
+            rsd[index(c_offset_L, jmin)] = -lambda(x, jmin+1);
         }
         if (m_arcLengthCont) {
-            // Release the initial boundary conditions here
             rsd[index(c_offset_L, jmin)] = -rho_u(x, jmin);
-        }
-        
+        }        
     }
 
     if (jmax == m_points - 1) { // right boundary
@@ -634,6 +632,7 @@ void StFlow::evalElectricField(double* x, double* rsd, int* diag,
         rsd[index(c_offset_E, jmin)] = x[index(c_offset_E, jmin)];
         if (m_arcLengthCont && m_usesLambda) {
             rsd[index(c_offset_E, jmin)] = x[index(c_offset_E, jmin+1)] - x[index(c_offset_E, jmin)];
+            // rsd[index(c_offset_E, jmin)] = x[index(c_offset_E, jmin)];
         }
     }
 
@@ -662,10 +661,12 @@ void StFlow::evalElectricField(double* x, double* rsd, int* diag,
                 rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)] - x[index(c_offset_E, j-1)];
             } else if (grid(j) == m_zTMax) {
                 // Modified internal boundary
-                double dTmax = (T(x, j) - m_tMaxPrev)/m_deltaTmaxRef; // Ref dT = 10
-                double dlnmdot = (x[index(c_offset_E, j)] - m_lnmdotPrev)/m_deltaLnmdotRef;
+                // double dTmax = (T(x, j) - m_tMaxPrev)/m_deltaTmaxRef; // Ref dT = 10
+                // double dlnmdot = (x[index(c_offset_E, j)] - m_lnmdotPrev)/m_deltaLnmdotRef;
+                double dTmax = (T(x, j) - m_tMaxPrev)/m_tMaxPrev; // Ref dT = 10
+                double dlnmdot = (x[index(c_offset_E, j)] - m_lnmdotPrev)/m_lnmdotPrev;
                 rsd[index(c_offset_E, j)] = dTmax*m_dTmaxds + dlnmdot*m_dlnmdotds - m_ds;
-                    // rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)] - m_lnmdotPrev;
+                // rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)] - m_lnmdotPrev;
             } else if (grid(j) < m_zTMax) {
                 rsd[index(c_offset_E, j)] = x[index(c_offset_E, j+1)] - x[index(c_offset_E, j)];
             }
