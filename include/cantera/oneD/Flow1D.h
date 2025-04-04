@@ -237,6 +237,10 @@ public:
     //! Turn radiation on / off.
     void enableRadiation(bool doRadiation) {
         m_do_radiation = doRadiation;
+        if (m_do_radiation == false){
+            // m_qdotRadiation.resize(m_points, 0.0);
+            std::fill(m_qdotRadiation.begin(), m_qdotRadiation.end(), 0.0); 
+        }
     }
 
     //! Returns `true` if the radiation term in the energy equation is enabled
@@ -247,6 +251,10 @@ public:
     //! Return radiative heat loss at grid point j
     double radiativeHeatLoss(size_t j) const {
         return m_qdotRadiation[j];
+    }
+
+    const vector<double>& radiativeHeatLoss() {
+        return m_qdotRadiation;
     }
 
     //! Set the emissivities for the boundary values
@@ -328,6 +336,130 @@ public:
     bool twoPointControlEnabled() const {
         return m_twoPointControl;
     }
+
+    //! The current ds for arc length coninuation
+    double arcLengthContDs() const{
+        if (m_arclengthContFree&& (m_ds != Undef)) {
+            return m_ds;
+        }
+    }
+
+    //! The current mass flow rate in previous estimation
+    double arcLengthContXMFuel() const {
+        if (m_arclengthContFree && (m_xmfuel != Undef)) {
+            // return std::exp(m_lnmdotPrev);
+            return m_xmfuel;
+        }
+    }
+
+    //! The current maximal temperature in previous estimation
+    double arcLengthContTmaxPrev() const {
+        if (m_arclengthContFree && (m_tMaxPrev != Undef)) {
+            return m_tMaxPrev;
+        }
+    }
+
+    //! The current mass flow rate in previous estimation
+    double arcLengthContPhiPrev() const {
+        if (m_arclengthContFree && (m_phiPrev != Undef)) {
+            // return std::exp(m_lnmdotPrev);
+            return m_phiPrev;
+        }
+    }
+
+    //! The reference delta T
+    double arcLengthContDeltaTmaxRef() const {
+        if (m_arclengthContFree && (m_deltaTmaxRef != Undef)) {
+            return m_deltaTmaxRef;
+        }
+    }
+
+    //! The reference delta phi
+    double arcLengthContDeltaphiRef() const {
+        if (m_arclengthContFree && (m_deltaphiRef != Undef)) {
+            return m_deltaphiRef;
+        }
+    }
+
+    //! The current estimation of dTmax/ds
+    double arcLengthContDTmaxDs() const {
+        if (m_arclengthContFree && (m_dTmaxds != Undef)) {
+            return m_dTmaxds;
+        }
+    }
+
+    //! The current estimation of dPhi/ds
+    double arcLengthContDphiDs() const {
+        if (m_arclengthContFree && (m_dlnphids != Undef)) {
+            return m_dlnphids;
+        }
+    }
+
+    //! Set the ds for arc length contniuation
+    void setArcLengthContDs(double ds) {
+        if (m_arclengthContFree) {
+            m_ds = ds;
+        }
+    }
+
+    //! Set the maximal temperature and inlet flow rate in previous estimation
+    void setArcLengthContPrev(double tMax, double phi) {
+        if (m_arclengthContFree) {
+            m_tMaxPrev = tMax;
+            // m_lnmdotPrev = std::log(mdot);
+            m_phiPrev = phi;
+        }
+    }
+
+    //! Set the reference delta T and delta mdot
+    void setArcLengthContRef(double deltaTmax, double deltaPhi) {
+        if (m_arclengthContFree) {
+            m_deltaTmaxRef = deltaTmax;
+            m_deltaphiRef = deltaPhi;
+        }
+    }
+
+    //! Set the derivative delta T and delta mdot
+    void setArcLengthContDDs(double deltaTmax, double deltaPhi) {
+        if (m_arclengthContFree) {
+            m_dTmaxds = deltaTmax;
+            m_dlnphids = deltaPhi;
+        }
+    }
+
+    //! The current mass flow rate in previous estimation
+    void setArcLengthContXMFuel(double xmfuel) {
+        if (m_arclengthContFree) {
+            // return std::exp(m_lnmdotPrev);
+            m_xmfuel = xmfuel;
+        }
+    }
+
+    //! Returns the status of the two-point control
+    bool arclengthContFreeEnabled() const {
+        return (m_arclengthContFree && m_isFree);
+    }
+
+    //! Set the speceis of one-point flame control
+    void enableArcLengthContFree(bool arcLengthCont) {
+        if (m_twoPointControl) {
+            throw CanteraError("StFlow::enableTwoPointControl",
+                               "Point control techniques has been set.");
+        } else {
+            if (m_isFree) {
+                 // Prevent finding spurious solutions with negative velocity (outflow) at either
+                // inlet.
+                m_arclengthContFree = arcLengthCont;
+                setBounds(c_offset_Uo, -1e-7, 1e20);
+            }  else {
+                throw CanteraError("Flow1D::enableArcLengthContFree",
+                    "Invalid operation: it can only be used"
+                    "with free flames.");
+            }
+            
+        }
+    }
+
     //! @}
 
     //! `true` if the energy equation is solved at point `j` or `false` if a fixed
@@ -477,6 +609,7 @@ protected:
      * [TNF Workshop](https://tnfworkshop.org/radiation/) material.
      */
     void computeRadiation(double* x, size_t jmin, size_t jmax);
+    void computeRadiationNakamura2017(double* x, size_t jmin, size_t jmax);
 
     //! @}
 
@@ -949,6 +1082,10 @@ protected:
     bool m_twoPointControl = false;
     //! @}
 
+    //! Flag for activating arc-length flame control of free flame
+    bool m_arclengthContFree = false;
+    //! @}
+
     //! radiative heat loss vector
     vector<double> m_qdotRadiation;
 
@@ -990,6 +1127,33 @@ protected:
 
     //! Temperature of the right control point when two-point control is enabled
     double m_tRight = Undef;
+public:
+    //! The position of maximal temperature point at current instance
+    double m_zTMax = 0.;
+protected:
+    //! The delta s in arc_length continuation
+    double m_ds = Undef;
+
+    //! The maximal temperature at previous instance
+    double m_tMaxPrev = Undef;
+
+    //! The previous equivalence ratio
+    double m_phiPrev = Undef;
+
+    //! The maximal temperature at previous instance
+    double m_deltaTmaxRef = 10.;
+
+    //! The inlet flow rate at previous instance
+    double m_deltaphiRef = std::log(1.3);
+
+    //! The dTmax/ds in arc_length continuation
+    double m_dTmaxds = Undef;
+
+    //! The dln(mdot)/dx in arc_length continuation
+    double m_dlnphids = Undef;
+
+    //! The main fuel mole fractions
+    double m_xmfuel = Undef;
 
 public:
     //! Location of the point where temperature is fixed

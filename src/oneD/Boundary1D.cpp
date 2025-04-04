@@ -203,6 +203,22 @@ void Inlet1D::eval(size_t jg, double* xg, double* rg,
         if (m_flow->isFree()) {
             // if the flow is a freely-propagating flame, mdot is not specified.
             // Set mdot equal to rho*u.
+            // Test if need to update the yin based on the solution phi
+            if (m_flow->arclengthContFreeEnabled()) {
+                vector<double> m_xinlet;
+                m_xinlet.resize(m_nsp, 0.0);
+                // Update the m_xinlet
+                // get the xnh3 mole fraction
+                double m_xNH3 = m_flow->arcLengthContXMFuel();
+                double phi = xb[c_offset_Uo];
+                double sum = phi + 4.76*(0.75*m_xNH3 + 0.5*(1-m_xNH3));
+                m_xinlet[m_flow->phase().speciesIndex("NH3")] = xb[c_offset_Uo]*m_xNH3/sum;
+                m_xinlet[m_flow->phase().speciesIndex("H2")] = xb[c_offset_Uo]*(1-m_xNH3)/sum;
+                m_xinlet[m_flow->phase().speciesIndex("O2")] = (0.75*m_xNH3 + 0.5*(1-m_xNH3))/sum;
+                m_xinlet[m_flow->phase().speciesIndex("N2")] = 3.76*(0.75*m_xNH3 + 0.5*(1-m_xNH3))/sum;;
+                setMoleFractions(m_xinlet.data());
+                // Update the density?
+            }
             m_mdot = m_flow->density(0) * xb[c_offset_U];
         } else if (m_flow->isStrained()) { // axisymmetric flow
             if (m_flow->twoPointControlEnabled()) {

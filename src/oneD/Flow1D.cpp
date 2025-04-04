@@ -82,9 +82,18 @@ Flow1D::Flow1D(ThermoPhase* ph, size_t nsp, size_t points) :
     setupGrid(m_points, gr.data());
 
     // Find indices for radiating species
-    m_kRadiating.resize(2, npos);
-    m_kRadiating[0] = m_thermo->speciesIndex("CO2");
-    m_kRadiating[1] = m_thermo->speciesIndex("H2O");
+    // m_kRadiating.resize(2, npos);
+    // m_kRadiating[0] = m_thermo->speciesIndex("CO2");
+    // m_kRadiating[1] = m_thermo->speciesIndex("H2O");
+    // Find indices for radiating species
+    m_kRadiating.resize(7, npos);
+    m_kRadiating[0] = m_thermo->speciesIndex("CO");
+    m_kRadiating[1] = m_thermo->speciesIndex("CO2");
+    m_kRadiating[2] = m_thermo->speciesIndex("H2O");
+    m_kRadiating[3] = m_thermo->speciesIndex("NO");
+    m_kRadiating[4] = m_thermo->speciesIndex("N2O");
+    m_kRadiating[5] = m_thermo->speciesIndex("NH3");
+    m_kRadiating[6] = m_thermo->speciesIndex("CH4");
 }
 
 Flow1D::Flow1D(shared_ptr<ThermoPhase> th, size_t nsp, size_t points)
@@ -334,7 +343,9 @@ void Flow1D::eval(size_t jGlobal, double* xGlobal, double* rsdGlobal,
     updateProperties(jGlobal, x, jmin, jmax);
 
     if (m_do_radiation) { // Calculation of qdotRadiation
-        computeRadiation(x, jmin, jmax);
+        // computeRadiation(x, jmin, jmax);
+        // writelog("\nAttempt {} and {} in rad eval.", jmin, jmax);
+        computeRadiationNakamura2017(x, jmin, jmax);
     }
 
     evalContinuity(x, rsd, diag, rdt, jmin, jmax);
@@ -500,6 +511,174 @@ void Flow1D::computeRadiation(double* x, size_t jmin, size_t jmax)
             }
             k_P_CO2 /= k_P_ref;
             k_P += m_press * X(x, m_kRadiating[0], j) * k_P_CO2;
+        }
+
+        // Calculation of the radiative heat loss term
+        double radiative_heat_loss = 2 * k_P *(2 * StefanBoltz * pow(T(x, j), 4)
+                                     - boundary_Rad_left - boundary_Rad_right);
+
+        // set the radiative heat loss vector
+        m_qdotRadiation[j] = radiative_heat_loss;
+    }
+}
+
+void Flow1D::computeRadiationNakamura2017(double* x, size_t jmin, size_t jmax)
+{
+    // Variable definitions for the Planck absorption coefficient and the
+    // radiation calculation:
+    double k_P_ref = 1.0*OneAtm;
+
+    // Polynomial coefficients:
+    const double c_CO_1[7] = {3.32332E+01, -3.81859E+02, 1.68054E+03, 
+                -3.59221E+03, 4.10932E+03, -2.44251E+03, 5.96159E+02};
+    const double c_CO_2[7] = {1.14597E+00, 2.32393E+01, -5.17447E+01,
+                4.65068E+01, -2.13393E+01, 4.97086E+00, -4.67667E-01};
+
+    const double c_CO2_1[7] = {-1.61017E+02, 2.07661E+03, -1.00536E+04,
+                  2.58277E+04, -3.59098E+04, 2.54860E+04, -7.25425E+03};
+    const double c_CO2_2[7] = {-8.16334E+00, 2.72779E+02, -5.37382E+02,
+                  4.56021E+02, -2.01261E+02, 4.54957E+01, -4.17609E+00};
+    // const double c_CO2[6] = {18.741, -121.310, 273.500, -194.050,
+    //                                 56.310, -5.8169};
+
+    const double c_H2O[6] = {-1.40598E+00, 5.14030E+00, -2.49209E+00,
+                              5.87875E+00, -2.33462E+00, 3.28929E-01};
+    // const double c_H2O[6] = {-0.23093, -1.12390, 9.41530, -2.99880,
+    //     0.51382, -1.86840e-5};
+
+    const double c_NO_1[7] = {3.09778E+01, -3.76125E+02, 1.78622E+03,
+                -4.19616E+03, 5.31065E+03, -3.49672E+03, 9.44469E+02};
+    const double c_NO_2[7] = {3.32933E+00, 4.96445E+00, -1.94120E+01,
+                2.00931E+01, -9.88762E+00, 2.40521E+00, -2.33153E-01};
+
+
+    const double c_N2O_1[7] = {9.47313E+01, -1.05713E+03, 4.90429E+03,
+                 -1.04877E+04, 1.16578E+04, -6.67397E+03, 1.57665E+03};
+    const double c_N2O_2[7] = {2.72619E+01, 1.26580E+02, -3.75408E+02,
+                 3.78748E+02, -1.86324E+02, 4.55295E+01, -4.43653E+00};
+
+    const double c_NH3_1[6] = {1.15691E+01, -3.56117E+01, 3.33438E+01,
+                              -7.08740E+00, 2.26363E-01, 6.26830E-02};
+    const double c_NH3_2[6] = {-5.10770E-02, -8.61034E-01, 9.23915E+00,
+                               -2.94040E+01, 3.65220E+01, -1.29468E+01};
+
+    const double c_CH4_1[7] = {9.34245E+01, -1.36727E+03, 8.19456E+03,
+                 -2.49120E+04, 4.11322E+04, -3.53140E+04, 1.23840E+04};
+    const double c_CH4_2[7] = {-6.04867E+00, 6.35149E+01, -1.29462E+02,
+                  1.17164E+02, -5.49038E+01, 1.30767E+01, -1.25597E+00};
+
+    // Calculation of the two boundary values
+    double boundary_Rad_left = m_epsilon_left * StefanBoltz * pow(T(x, 0), 4);
+    double boundary_Rad_right = m_epsilon_right * StefanBoltz * pow(T(x, m_points - 1), 4);
+
+    for (size_t j = jmin; j <= jmax; j++) {
+        // calculation of the mean Planck absorption coefficient
+        double k_P = 0;
+
+        // Absorption coefficient for CO
+        if (m_kRadiating[0] != npos) {
+            double k_P_CO = 0;
+            if( T(x, j) <= 865) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_CO += c_CO_1[n] * pow(T(x, j)/1000, (double) n);
+                }
+            } else if ( T(x, j) <= 2500) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_CO += c_CO_2[n] * pow(T(x, j)/1000, (double) n);
+                }
+            }
+            k_P_CO /= k_P_ref;
+            k_P += m_press * X(x, m_kRadiating[0], j) * k_P_CO;
+        }
+
+        // Absorption CO2efficient for CO2
+        if (m_kRadiating[1] != npos) {
+            double k_P_CO2 = 0;
+            if( T(x, j) <= 860) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_CO2 += c_CO2_1[n] * pow(T(x, j)/1000, (double) n);
+                }
+            } else if ( T(x, j) <= 2500) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_CO2 += c_CO2_2[n] * pow(T(x, j)/1000, (double) n);
+                }
+            }
+            k_P_CO2 /= k_P_ref;
+            k_P += m_press * X(x, m_kRadiating[1], j) * k_P_CO2;
+        }
+
+        // Absorption coefficient for H2O
+        if (m_kRadiating[2] != npos) {
+            double k_P_H2O = 0;
+            for (size_t n = 0; n <= 5; n++) {
+                k_P_H2O += c_H2O[n] * pow(1000.0/T(x, j), (double) n);
+            }
+            k_P_H2O /= k_P_ref;
+            k_P += m_press * X(x, m_kRadiating[2], j) * k_P_H2O;
+        }
+
+        // Absorption NOefficient for NO
+        if (m_kRadiating[3] != npos) {
+            double k_P_NO = 0;
+            if( T(x, j) <= 785) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_NO += c_NO_1[n] * pow(T(x, j)/1000, (double) n);
+                }
+            } else if ( T(x, j) <= 2500) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_NO += c_NO_2[n] * pow(T(x, j)/1000, (double) n);
+                }
+            }
+            k_P_NO /= k_P_ref;
+            k_P += m_press * X(x, m_kRadiating[3], j) * k_P_NO;
+        }
+
+        // Absorption N2Oefficient for N2O
+        if (m_kRadiating[4] != npos) {
+            double k_P_N2O = 0;
+            if( T(x, j) <= 820) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_N2O += c_N2O_1[n] * pow(T(x, j)/1000, (double) n);
+                }
+            } else if ( T(x, j) <= 2500) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_N2O += c_N2O_2[n] * pow(T(x, j)/1000, (double) n);
+                }
+            }
+            k_P_N2O /= k_P_ref;
+            k_P += m_press * X(x, m_kRadiating[4], j) * k_P_N2O;
+        }
+
+        // Absorption N2Oefficient for NH3
+        if (m_kRadiating[5] != npos) {
+            double k_P_NH3 = 0;
+            if( T(x, j) <= 1100) {
+                for (size_t n = 0; n <= 5; n++) {
+                    k_P_NH3 += c_NH3_1[n] * pow(1000/T(x, j), (double) n);
+                }
+            } else if ( T(x, j) <= 2500) {
+                for (size_t n = 0; n <= 5; n++) {
+                    k_P_NH3 += c_NH3_2[n] * pow(1000/T(x, j), (double) n);
+                }
+            }
+            k_P_NH3 /= k_P_ref;
+            k_P += m_press * X(x, m_kRadiating[5], j) * k_P_NH3;
+        }
+
+        // Absorption CH4efficient for CH4
+        if (m_kRadiating[6] != npos) {
+            double k_P_CH4 = 0;
+            if( T(x, j) <= 645) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_CH4 += c_CH4_1[n] * pow(T(x, j)/1000, (double) n);
+                }
+            } else if ( T(x, j) <= 2500) {
+                for (size_t n = 0; n <= 6; n++) {
+                    k_P_CH4 += c_CH4_2[n] * pow(T(x, j)/1000, (double) n);
+                }
+            }
+            k_P_CH4 /= k_P_ref;
+            k_P += m_press * X(x, m_kRadiating[6], j) * k_P_CH4;
         }
 
         // Calculation of the radiative heat loss term
@@ -692,7 +871,7 @@ void Flow1D::evalEnergy(double* x, double* rsd, int* diag,
 void Flow1D::evalUo(double* x, double* rsd, int* diag,
                     double rdt, size_t jmin, size_t jmax)
 {
-    if (!m_twoPointControl) { // disable this equation
+    if (!m_twoPointControl && !(m_arclengthContFree && m_isFree)){ // disable this equation
         for (size_t j = jmin; j <= jmax; j++) {
             rsd[index(c_offset_Uo, j)] = Uo(x, j);
             diag[index(c_offset_Uo, j)] = 0;
@@ -709,6 +888,9 @@ void Flow1D::evalUo(double* x, double* rsd, int* diag,
         if(m_twoPointControl) {
             rsd[index(c_offset_Uo, jmax)] = Uo(x, jmax) - Uo(x, jmax-1);
         }
+        if (m_arclengthContFree && m_isFree) {
+            rsd[index(c_offset_Uo, jmax)] = Uo(x, jmax) - Uo(x, jmax-1);
+        }
         diag[index(c_offset_Uo, jmax)] = 0;
     }
 
@@ -722,6 +904,21 @@ void Flow1D::evalUo(double* x, double* rsd, int* diag,
             } else if (z(j) > m_zRight) {
                 rsd[index(c_offset_Uo, j)] = Uo(x, j) - Uo(x, j-1);
             } else if (z(j) < m_zRight) {
+                rsd[index(c_offset_Uo, j)] = Uo(x, j) - Uo(x, j+1);
+            }
+        } else if (m_arclengthContFree && m_isFree) {
+            if (z(j) > m_zTMax) {
+                rsd[index(c_offset_Uo, j)] = Uo(x, j) - Uo(x, j-1);
+            } else if (z(j) == m_zTMax) {
+                // Modified internal boundary
+                // updata the Uo or the phi based on the 
+                // double dlnmdot = (x[index(c_offset_E, j)] - m_lnmdotPrev)/m_deltaLnmdotRef;
+                double dTmax = (T(x, j) - m_tMaxPrev)/m_deltaTmaxRef; // Ref dT = 10
+                double dphi = (x[index(c_offset_Uo, j)] - m_phiPrev)/m_deltaphiRef;
+                // double dlnmdot = (x[index(c_offset_E, j)] - m_lnmdotPrev)/m_lnmdotPrev;
+                rsd[index(c_offset_Uo, j)] = dTmax*m_dTmaxds + dphi*m_dlnphids - m_ds;
+                // rsd[index(c_offset_E, j)] = x[index(c_offset_E, j)] - m_lnmdotPrev;
+            } else if (z(j) < m_zTMax) {
                 rsd[index(c_offset_Uo, j)] = Uo(x, j) - Uo(x, j+1);
             }
         }
@@ -854,7 +1051,12 @@ bool Flow1D::componentActive(size_t n) const
     case c_offset_E: // eField
         return false;
     case c_offset_Uo: // oxidizer velocity for two-point control
-        return twoPointControlEnabled();
+        // Modify this for the arclength continuation of free flame
+        if (m_arclengthContFree && m_isFree) {
+            return true; // m_arclengthContFree
+        } else {
+            return twoPointControlEnabled();
+        }
     default:
         return true;
     }
@@ -906,6 +1108,12 @@ AnyMap Flow1D::getMeta() const
         state["continuation-method"]["right-location"] = m_zRight;
         state["continuation-method"]["left-temperature"] = m_tLeft;
         state["continuation-method"]["right-temperature"] = m_tRight;
+    }
+
+    // Two-point control meta data
+    if (m_arclengthContFree) {
+        state["continuation-method"]["type"] = "arc-length-free";
+        state["continuation-method"]["Tmax-location"] = m_zTMax;
     }
 
     return state;
@@ -1100,12 +1308,12 @@ bool Flow1D::doElectricField(size_t j) const
 
 void Flow1D::setBoundaryEmissivities(double e_left, double e_right)
 {
-    if (e_left < 0 || e_left > 1) {
+    if (e_left < 0 || e_left > 2) {
         throw CanteraError("Flow1D::setBoundaryEmissivities",
-            "The left boundary emissivity must be between 0.0 and 1.0!");
-    } else if (e_right < 0 || e_right > 1) {
+            "The left boundary emissivity must be between 0.0 and 2.0!");
+    } else if (e_right < 0 || e_right > 2) {
         throw CanteraError("Flow1D::setBoundaryEmissivities",
-            "The right boundary emissivity must be between 0.0 and 1.0!");
+            "The right boundary emissivity must be between 0.0 and 2.0!");
     } else {
         m_epsilon_left = e_left;
         m_epsilon_right = e_right;

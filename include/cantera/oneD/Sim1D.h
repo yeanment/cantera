@@ -280,6 +280,18 @@ public:
     void setRightControlPoint(double temperature);
 
     /**
+     * Set the arclength control point location using the maximal temperature.
+     * This is used when arc-length continuation is active.
+     */
+    void setArcLengthContTmaxBoundary();
+
+    /**
+     * Set the arclength control point location using the maximal OH.
+     * This is used when arc-length continuation is active.
+     */
+    // void setArcLengthContOHmaxBoundary();
+
+    /**
      * Set grid refinement criteria. If dom >= 0, then the settings
      * apply only to the specified domain.  If dom < 0, the settings
      * are applied to each domain.  @see Refiner::setCriteria.

@@ -421,8 +421,11 @@ void Sim1D::solve(int loglevel, bool refine_grid)
             writeline('.', 78, true, true);
         }
         while (!ok) {
-             // Keep the attempt_counter in the range of [1, max_history]
-             attempt_counter = (attempt_counter % max_history) + 1;
+            // Keep the attempt_counter in the range of [1, max_history]
+            attempt_counter = (attempt_counter % max_history) + 1;
+            
+            // Try to update the maximal temperature point
+            setArcLengthContTmaxBoundary();
 
             // Attempt to solve the steady problem
             setSteadyMode();
@@ -933,6 +936,34 @@ void Sim1D::resize()
 {
     OneDim::resize();
     m_xnew.resize(size(), 0.0);
+}
+
+void Sim1D::setArcLengthContTmaxBoundary()
+{
+    double tMax = 0.0;
+    double zfixed = 0.0;    
+    vector<size_t> dsize;
+
+    for (size_t n = 0; n < nDomains(); n++) {
+        Domain1D& d = domain(n);
+
+        // loop over current grid to determine where new point is needed
+        Flow1D* d_axis = dynamic_cast<Flow1D*>(&domain(n));
+        size_t npnow = d.nPoints();
+        if (d_axis && d_axis ->isFree() && d_axis->arclengthContFreeEnabled()) {
+            vector<double> grid = d.grid();
+            for (size_t m = 1; m < npnow - 1; m++) {
+                // Only consider inside point for maximal temperature
+                double t1 = value(n, c_offset_T, m);
+                double z1 = grid[m];
+                if (t1 > tMax) {
+                    tMax = t1;
+                    zfixed = z1;
+                }
+            }
+            d_axis->m_zTMax = zfixed;
+        }
+    }
 }
 
 }

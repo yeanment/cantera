@@ -463,6 +463,63 @@ cdef class FlowBase(Domain1D):
         def __set__(self, P):
             self.flow.setPressure(P)
 
+    property ds:
+        """ mdotPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContDs()
+        def __set__(self, ds):
+            self.flow.setArcLengthContDs(ds)
+
+    property xmfuel:
+        """ XMfuel for arc length continuation of binary fuel """
+        def __get__(self):
+            return self.flow.arcLengthContXMFuel()
+        def __set__(self, xmfuel):
+            self.flow.setArcLengthContXMFuel(xmfuel)
+
+    property tMaxPrev:
+        """ tMaxPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContTmaxPrev()
+        def __set__(self, tMaxPrev):
+            self.flow.setArcLengthContPrev(tMaxPrev, self.phiPrev)
+
+    property phiPrev:
+        """ phiPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContPhiPrev()
+        def __set__(self, phiPrev):
+            self.flow.setArcLengthContPrev(self.tMaxPrev, phiPrev)
+
+    property deltaTmaxRef:
+        """ tMaxPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContDeltaTmaxRef()
+        def __set__(self, deltaTmaxRef):
+            self.flow.setArcLengthContRef(deltaTmaxRef, self.deltaphiRef)
+
+    property deltaphiRef:
+        """ mdotPrev for arc length continuation """
+        def __get__(self):
+            return self.flow.arcLengthContDeltaphiRef()
+        def __set__(self, deltaphiRef):
+            self.flow.setArcLengthContRef(self.deltaTmaxRef, deltaphiRef)
+
+    property dTmaxds:
+        """ dTmax/ds for arc length """
+        def __get__(self):
+            return self.flow.arcLengthContDTmaxDs()
+        def __set__(self, dTmaxds):
+            self.flow.setArcLengthContDDs(dTmaxds, self.dphids)
+
+    property dphids:
+        """ dphi/ds """
+        def __get__(self):
+            return self.flow.arcLengthContDphiDs()
+        def __set__(self, dphids):
+            self.flow.setArcLengthContDDs(self.dTmaxds, dphids)
+
+
     property transport_model:
         """
         Get/set the transport model used for calculating transport properties.
@@ -504,6 +561,13 @@ cdef class FlowBase(Domain1D):
             return self.flow.withSoret()
         def __set__(self, enable):
             self.flow.enableSoret(<cbool>enable)
+
+    property arcLengthCont_enabled:
+        """ Determines whether or not to enable one point flame control"""
+        def __get__(self):
+            return self.flow.arclengthContFreeEnabled()
+        def __set__(self, enable):
+            self.flow.enableArcLengthContFree(<cbool>enable)
 
     property flux_gradient_basis:
         """

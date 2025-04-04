@@ -76,6 +76,23 @@ cdef extern from "cantera/oneD/Flow1D.h":
         double radiativeHeatLoss(size_t)
         double pressure()
         void setFixedTempProfile(vector[double]&, vector[double]&)
+
+        double arcLengthContDs()
+        double arcLengthContXMFuel()
+        double arcLengthContTmaxPrev()
+        double arcLengthContPhiPrev()
+        double arcLengthContDeltaTmaxRef()
+        double arcLengthContDeltaphiRef()
+        double arcLengthContDTmaxDs()
+        double arcLengthContDphiDs()
+        void setArcLengthContDs(double ds)
+        void setArcLengthContPrev(double tMax, double phi)
+        void setArcLengthContRef(double deltaTmax, double deltaPhi)
+        void setArcLengthContDDs(double deltaTmax, double deltaPhi)
+        void setArcLengthContXMFuel(double xmfuel)
+        cbool arclengthContFreeEnabled()
+        void enableArcLengthContFree(cbool arcLengthCont) 
+
         size_t getSolvingStage() except +translate_exception
         void setSolvingStage(size_t) except +translate_exception
         void solveElectricField() except +translate_exception
