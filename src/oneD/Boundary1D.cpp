@@ -208,14 +208,21 @@ void Inlet1D::eval(size_t jg, double* xg, double* rg,
                 vector<double> m_xinlet;
                 m_xinlet.resize(m_nsp, 0.0);
                 // Update the m_xinlet
-                // get the xnh3 mole fraction
-                double m_xNH3 = m_flow->arcLengthContXMFuel();
+                // get the gamma fraction 
+                // double m_xNH3 = m_flow->arcLengthContXMFuel();
+                // double phi = xb[c_offset_Uo];
+                // double sum = phi + 4.76*(0.75*m_xNH3 + 0.5*(1-m_xNH3));
+                // m_xinlet[m_flow->phase().speciesIndex("NH3")] = xb[c_offset_Uo]*m_xNH3/sum;
+                // m_xinlet[m_flow->phase().speciesIndex("H2")] = xb[c_offset_Uo]*(1-m_xNH3)/sum;
+                // m_xinlet[m_flow->phase().speciesIndex("O2")] = (0.75*m_xNH3 + 0.5*(1-m_xNH3))/sum;
+                // m_xinlet[m_flow->phase().speciesIndex("N2")] = 3.76*(0.75*m_xNH3 + 0.5*(1-m_xNH3))/sum;;
+                double gamma = m_flow->arcLengthContXMFuel();
                 double phi = xb[c_offset_Uo];
-                double sum = phi + 4.76*(0.75*m_xNH3 + 0.5*(1-m_xNH3));
-                m_xinlet[m_flow->phase().speciesIndex("NH3")] = xb[c_offset_Uo]*m_xNH3/sum;
-                m_xinlet[m_flow->phase().speciesIndex("H2")] = xb[c_offset_Uo]*(1-m_xNH3)/sum;
-                m_xinlet[m_flow->phase().speciesIndex("O2")] = (0.75*m_xNH3 + 0.5*(1-m_xNH3))/sum;
-                m_xinlet[m_flow->phase().speciesIndex("N2")] = 3.76*(0.75*m_xNH3 + 0.5*(1-m_xNH3))/sum;;
+                double sum = phi*(1+gamma) + 4.76*0.75;
+                m_xinlet[m_flow->phase().speciesIndex("NH3")] = phi*(1 - gamma)/sum;
+                m_xinlet[m_flow->phase().speciesIndex("H2")] = phi*(1.5*gamma)/sum;
+                m_xinlet[m_flow->phase().speciesIndex("O2")] = 0.75/sum;
+                m_xinlet[m_flow->phase().speciesIndex("N2")] = (3.76*0.75 + phi*0.5*gamma)/sum;;
                 setMoleFractions(m_xinlet.data());
                 // Update the density?
             }
